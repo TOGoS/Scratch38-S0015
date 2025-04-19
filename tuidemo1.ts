@@ -1,3 +1,5 @@
+import * as ansicodes from 'https://deno.land/x/tui@2.1.11/src/utils/ansi_codes.ts';
+
 // tuidemo1.ts
 const colors = [
 	"\x1b[31m", // Red
@@ -36,12 +38,39 @@ function updateColor() {
 	drawBox();
 }
 
-console.log("Clearing screen...");
-console.clear();
-console.log("DONE CLEARING");
+async function enterTui() {
+	await Deno.stdin.setRaw(true);
+	await Deno.stdout.write(textEncoder.encode(ansicodes.USE_SECONDARY_BUFFER + ansicodes.HIDE_CURSOR));
+}
+
+async function exitTui() {
+	await Deno.stdin.setRaw(false);
+	await Deno.stdout.write(textEncoder.encode(ansicodes.USE_PRIMARY_BUFFER + ansicodes.SHOW_CURSOR));
+}
+
+await enterTui();
 lawg("Lawg!");
 drawBox();
 setInterval(updateColor, 1000);
+
+async function quit() {
+	await exitTui();
+	Deno.exit(1);
+}
+
+// See tui/src/input_reader/mod.ts for hints on handling input
+for await( const buf of Deno.stdin.readable ) {
+	for( const byte of buf ) {
+		if( byte == 113 ) { // 'q'
+			console.log(`# Bye bye!`);
+			quit();
+		} else {
+			exitTui();
+			console.log(`# You said ${byte}; Goodbye!`);
+			Deno.exit(0);
+		}
+	}
+}
 
 // Note: If debugging in the 'debug console' of Visual Studio Code, you'll get console.whatever,
 // but not things written to Deno.stdout!  Bah!
