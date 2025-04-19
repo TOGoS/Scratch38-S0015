@@ -13,63 +13,120 @@ const colors = [
 
 let colorIndex = 0;
 
-const textEncoder = new TextEncoder();
-
-function moveToTop() : Promise<unknown> {
-	return Deno.stdout.write(textEncoder.encode('\x1b[1;1H'));
-}
-function printLine(str:string) : Promise<unknown> {
-	return Deno.stdout.write(textEncoder.encode(str+"\n"));
-}
-
 function padLeft(template:string, content:string) : string {
 	if( content.length > template.length ) return content.substring(content.length-template.length);
 	return template.substring(0, template.length-content.length) + content;
 }
 
-let state : "default"|"entering-tui"|"tui"|"exiting-tui" = "default";
 let messages : string[] = [];
-let redrawRequested = false;
 let drawCount = 0;
 
-// TODO: Less asynchronicity; one 'thread' (i.e. promise chain) for all output changes and writing
+type TOGTUIRenderer = (writer:WritableStreamDefaultWriter) => Promise<unknown>;
 
-async function draw() {
-	if( state != "tui" ) return;
+const textEncoder = new TextEncoder();
+
+class TOGTUICanvas {
+	#redrawTimeout : number|undefined = undefined;
+	#out : WritableStreamDefaultWriter;
+	#writeProm : Promise<unknown> = Promise.resolve();
+	#renderer : TOGTUIRenderer;
+	#state : "off"|"starting"|"on"|"stopping" = "off";
 	
-	++drawCount;
+	constructor(
+		out:WritableStreamDefaultWriter,
+		renderer: TOGTUIRenderer
+	) {
+		this.#state = "off";
+		this.#out = out;
+		this.#renderer = renderer;
+	}
 	
-	await moveToTop();
+	get state() {
+		return this.#state;
+	}
 	
-	const nocolor = '\x1b[0m';
-	const color = colors[colorIndex];
-	// See https://en.wikipedia.org/wiki/Box-drawing_characters
-	await printLine(`┌───────────────┐`);
-	await printLine(`│    ${color}Hello TUI!${nocolor} │`);
-	await printLine(`├───────────────┤`);
-	await printLine(`│ Draws: \x1b[34m${padLeft("      ", ""+drawCount)}${nocolor} │`);
-	await printLine(`└───────────────┘`);
-	for( const m of messages ) {
-		printLine(m);
+	#write(stuff:string|Uint8Array) : Promise<unknown> {
+		if( typeof(stuff) == "string" ) {
+			stuff = textEncoder.encode(stuff);
+		}
+		return this.#writeProm = this.#writeProm.then(
+			() => this.#out.write(stuff)
+		);
+	}
+	
+	async draw() {
+		if( this.#state != "on" ) return;
+		await this.#out;
+		await this.#renderer(this.#out);
+	}
+	
+	async enterTui() {
+		if( this.#state != "off" ) throw new Error(`Can't start canvas; state = ${this.#state}`);
+		this.#state = "starting";
+		await this.#write(ansicodes.USE_SECONDARY_BUFFER + ansicodes.HIDE_CURSOR);
+		this.#state = "on";
+		this.requestRedraw();
+	}
+	async exitTui() {
+		if( this.#redrawTimeout ) clearTimeout(this.#redrawTimeout);
+		if( this.#state != "on" ) throw new Error(`Can't exit canvas; state = ${this.#state}`);
+		this.#state = "starting";
+		await this.#write(ansicodes.USE_PRIMARY_BUFFER + ansicodes.SHOW_CURSOR);
+		this.#state = "on";
+	}
+	
+	requestRedraw() {
+		if( this.#redrawTimeout != undefined ) return;
+		this.#redrawTimeout = setTimeout(async () => {
+			try {
+				await this.draw();
+			} finally {
+				this.#redrawTimeout = undefined;
+			}
+		}, 5); // Or 0, but 5 for extra debounciness
 	}
 }
 
-function requestRedraw() {
-	if( redrawRequested ) return;
-	
-	redrawRequested = true;
-	setTimeout(async () => {
-		await draw();
-		redrawRequested = false;
-	}, 0);
-}
+const outWriter = Deno.stdout.writable.getWriter();
+let needClear  = false;
+
+const canv = new TOGTUICanvas(
+	outWriter,
+	async (out) => {
+		++drawCount;
+		
+		function write(thing:string) {
+			return out.write(textEncoder.encode(thing));
+		}
+		function writeLine(thing:string) {
+			return write(thing+"\n");
+		}
+		
+		if( needClear ) {
+			await write(ansicodes.CLEAR_SCREEN);
+		}
+		await write(ansicodes.moveCursor(0,0));
+		
+		const nocolor = '\x1b[0m';
+		const color = colors[colorIndex];
+		// See https://en.wikipedia.org/wiki/Box-drawing_characters
+		await writeLine(`┌───────────────┐`);
+		await writeLine(`│    ${color}Hello TUI!${nocolor} │`);
+		await writeLine(`├───────────────┤`);
+		await writeLine(`│ Draws: \x1b[34m${padLeft("      ", ""+drawCount)}${nocolor} │`);
+		await writeLine(`└───────────────┘`);
+		for( const m of messages ) {
+			await writeLine(m);
+		}	
+	}
+);
 
 function log(message:string) {
 	// TODO: Just have a logger variable that can be switched out when exiting
-	if( state == "entering-tui" || state == "tui" ) {
+	if( canv.state == "starting" || canv.state == "on" ) {
 		messages.push(message);
 		messages = messages.slice(Math.max(0,messages.length - 10));
-		requestRedraw();
+		canv.requestRedraw();
 	} else {
 		console.log(message);
 	}
@@ -77,35 +134,20 @@ function log(message:string) {
 
 function updateColor() {
 	colorIndex = (colorIndex + 1) % colors.length;
-	requestRedraw();
+	canv.requestRedraw();
 }
 
-async function enterTui() {
-	state = "entering-tui";
-	await Deno.stdout.write(textEncoder.encode(ansicodes.USE_SECONDARY_BUFFER + ansicodes.HIDE_CURSOR));
-	await Deno.stdout.write(textEncoder.encode(ansicodes.CLEAR_SCREEN));
-	await Deno.stdin.setRaw(true);
-	state = "tui";
-}
-
-async function exitTui() {
-	state = "exiting-tui";
-	await Deno.stdin.setRaw(false);
-	await Deno.stdout.write(textEncoder.encode(ansicodes.USE_PRIMARY_BUFFER + ansicodes.SHOW_CURSOR));
-	state = "default";
-}
-
-await enterTui();
-printLine("Lawg!");
-draw();
-const interval = setInterval(updateColor, 1000);
+Deno.stdin.setRaw(true);
+await canv.enterTui();
+const colorUpdateInterval = setInterval(updateColor, 1000);
 
 const input = Deno.stdin.readable;
 
 async function quit() {
-	await exitTui();
+	await canv.exitTui();
+	Deno.stdin.setRaw(false);
 	Deno.stdin.close();
-	clearInterval(interval);
+	clearInterval(colorUpdateInterval);
 }
 
 async function* inputEvents(stdin : ReadableStream) {
@@ -124,6 +166,9 @@ try {
 		log(`Read event: ${JSON.stringify(evt)}`);
 		if( evt.key == "q" ) {
 			await quit();
+		} else if( evt.key == "c" ) {
+			needClear = true;
+			canv.requestRedraw();
 		}
 	}
 } catch( e ) {
