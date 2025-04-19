@@ -12,11 +12,10 @@ let colorIndex = 0;
 
 function drawBox() {
 	console.clear();
+	const nocolor = '\x1b[0m';
 	const color = colors[colorIndex];
 	console.log(`┌────────────┐`);
-	console.log(`│            │`);
-	console.log(`│ ${color}Hello TUI!\x1b[0m │`);
-	console.log(`│            │`);
+	console.log(`│ ${color}Hello TUI!${nocolor} │`);
 	console.log(`└────────────┘`);
 }
 
