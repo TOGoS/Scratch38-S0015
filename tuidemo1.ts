@@ -88,7 +88,89 @@ class TOGTUICanvas {
 }
 
 const outWriter = Deno.stdout.writable.getWriter();
-let needClear  = false;
+let needClear  = true;
+
+//// A stab at making 'reactive' things.
+// See also: That one SynthGen demo I made that one time,
+// with the updatable nodes, that differentiated between
+// inward and outward updates, and worked surprisingly well.
+
+interface Thenable<T> {
+	then<T1>(map:(x:T) => T1) : T1;
+}
+function isThenable<V>(v:V|Thenable<V>) : v is Thenable<V> {
+	// deno-lint-ignore no-explicit-any
+	return typeof(v) == 'object' && typeof((v as any)['then']) == 'function';
+}
+interface Reactor<T> {
+	addUpdateListener(callback:(v:T)=>void ) : void;
+	readonly value : T;
+	map<T1>(map: (x: T) => T1) : Reactor<T1>;
+	then<T1>(map: (x: T) => T1|Thenable<T1>, initialValue:T1) : Reactor<T1>;
+}
+class BasicReactor<T> implements Reactor<T> {
+	#updateListeners : ((v:T)=>unknown)[] = [];
+	#value : T;
+	constructor(initialValue:T) {
+		this.#value = initialValue;
+	}
+	update(v:T, force:boolean=false) {
+		if( force || v != this.#value ) {
+			this.#value = v;
+			for( const l of this.#updateListeners ) l(v);
+		}
+	}
+	get value() : T {
+		return this.#value;
+	}
+	addUpdateListener(callback:(v:T)=>void ) : void {
+		this.#updateListeners.push(callback);
+		callback(this.value);
+	}
+	map<T1>(map: (x: T) => T1): Reactor<T1> {
+		const reactor1 = new BasicReactor<T1>(map(this.value));
+		// Ooh, return of map could be a Promise...
+		// OR ANOTHER REACTOR!!!
+		// Maybe this hints that I should just be using AsyncIterators everywhere idklol.
+		this.addUpdateListener(v => {
+			const v1Prom = map(v)
+			if( isThenable(v1Prom) ) {
+				v1Prom.then(v1 => reactor1.update(v1));
+			} else {
+				reactor1.update(v1Prom);
+			}
+		});
+		return reactor1;
+	}
+	then<T1>(map: (x: T) => Thenable<T1>, initialValue:T1): Reactor<T1> {
+		const reactor1 = new BasicReactor<T1>(initialValue);
+		// Ooh, return of map could be a Promise...
+		// OR ANOTHER REACTOR!!!
+		// Maybe this hints that I should just be using AsyncIterators everywhere idklol.
+		this.addUpdateListener(v => {
+			const v1Prom = map(v)
+			if( isThenable(v1Prom) ) {
+				v1Prom.then(v1 => reactor1.update(v1));
+			} else {
+				reactor1.update(v1Prom);
+			}
+		});
+		return reactor1;
+	}
+}
+
+function toWidthHeight(consoleSize:{rows:number,columns:number}) : {width:number,height:number} {
+	const {rows:height, columns:width} = consoleSize;
+	return {width,height};
+}
+
+const rowsColsVar = new BasicReactor(Deno.consoleSize());
+Deno.addSignalListener("SIGWINCH", () => rowsColsVar.update(Deno.consoleSize()));
+const screenSizeVar = rowsColsVar.map(toWidthHeight);
+
+const screenSizeFormattedVar = screenSizeVar.then(s => s == undefined ? 'undefined' : `${s.width} x ${s.height}`, 'undefined');
+
+// Thought: Instead of all that stuff, could just iterate over 'app state' or something?
 
 const canv = new TOGTUICanvas(
 	outWriter,
@@ -103,6 +185,7 @@ const canv = new TOGTUICanvas(
 		}
 		
 		if( needClear ) {
+			needClear = false;
 			await write(ansicodes.CLEAR_SCREEN);
 		}
 		await write(ansicodes.moveCursor(0,0));
@@ -115,11 +198,17 @@ const canv = new TOGTUICanvas(
 		await writeLine(`├───────────────┤`);
 		await writeLine(`│ Draws: \x1b[34m${padLeft("      ", ""+drawCount)}${nocolor} │`);
 		await writeLine(`└───────────────┘`);
+		await writeLine(screenSizeFormattedVar.value);
 		for( const m of messages ) {
 			await writeLine(m);
 		}	
 	}
 );
+
+screenSizeFormattedVar.addUpdateListener(_f => {
+	needClear = true;
+	canv.requestRedraw();
+});
 
 function log(message:string) {
 	// TODO: Just have a logger variable that can be switched out when exiting
@@ -179,6 +268,8 @@ try {
 		throw e;
 	}
 }
+
+// TODO: Get screen size
 
 // Note: If debugging in the 'debug console' of Visual Studio Code, you'll get console.whatever,
 // but not things written to Deno.stdout!  Bah!
