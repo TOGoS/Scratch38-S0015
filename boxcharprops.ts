@@ -23,6 +23,7 @@ const { UP, LEFT, DOWN, RIGHT } = BDC_PROP_SHIFTS;
 const { NONE, LIGHT,  DOUBLE, HEAVY, LIGHT_DOTTED, LIGHT_DASHED } = BDC_PROP_VALUES;
 
 export const BOX_DRAWING_CHAR_PROPS : {[char:string]: number} = {
+	" ": 0,
 	"─": (LIGHT << LEFT) | (LIGHT << RIGHT),
 	"━": (HEAVY << LEFT) | (HEAVY << RIGHT),
 	"│": (LIGHT << UP  ) | (LIGHT << DOWN ),
@@ -42,5 +43,9 @@ export const BOX_DRAWING_CHAR_PROPS : {[char:string]: number} = {
 	"┤": (LIGHT << UP) | (LIGHT << DOWN) | (LIGHT << LEFT),
 	"┬": (LIGHT << LEFT) | (LIGHT << RIGHT) | (LIGHT << DOWN),
 	"┴": (LIGHT << LEFT) | (LIGHT << RIGHT) | (LIGHT << DOWN),
+	"╴": (LIGHT << LEFT),
+	"╵": (LIGHT << UP),
+	"╶": (LIGHT << RIGHT),
+	"╷": (LIGHT << DOWN),
 	// TODO: All the rest of them lmao.
 };
