@@ -52,54 +52,6 @@ class Peekeratable<T, TReturn=any, TNext=any> implements AsyncIterator<T, TRetur
 	}
 }
 
-//// Messing around with idea of using infinite linked lists
-// so that I could pretend I'm writing a lisp program or something
-
-interface EmptyLinkedList {
-	isEmpty: true;
-}
-interface NonEmptyAsyncLinkedList<T> {
-	isEmpty : false;
-	head : T;
-	tail : PromiseLike<AsyncLinkedList<T>>;
-}
-type AsyncLinkedList<T> = EmptyLinkedList | NonEmptyAsyncLinkedList<T>;
-const NIL : EmptyLinkedList = Object.freeze({ isEmpty: true });
-
-async function toAsyncLinkedList<T>(iter:AsyncIterator<T>) : Promise<AsyncLinkedList<T>> {
-	const next = await iter.next();
-	return next.done ? NIL : {isEmpty: false, head: next.value, tail: toAsyncLinkedList(iter) };
-}
-function asyncCons<T>(head:T, tail:PromiseLike<AsyncLinkedList<T>>) : AsyncLinkedList<T> {
-	return {isEmpty: false, head, tail};
-}
-class LazyPromise<T> implements PromiseLike<T> {
-	#wrapped  : PromiseLike<T>|undefined;
-	#generate : ()=>PromiseLike<T>;
-	#getWrapped() {
-		if( this.#wrapped == undefined ) this.#wrapped = this.#generate();
-		return this.#wrapped;
-	}
-	constructor(generate:()=>PromiseLike<T>) {
-		this.#generate = generate;
-	}
-	then<TResult1 = T, TResult2 = never>(onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | undefined | null, onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null): PromiseLike<TResult1 | TResult2> {
-		return this.#getWrapped().then(onfulfilled, onrejected);
-	};
-}
-
-async function parseCharishes(bytes:AsyncLinkedList<number>) : Promise<AsyncLinkedList<Charish>> {
-	if( bytes.isEmpty ) return Promise.resolve(NIL);
-	if( bytes.head != 0x1b ) {
-		const {head, tail} = bytes;
-		return Promise.resolve(
-			asyncCons(head, new LazyPromise( () => tail.then(parseCharishes) ))
-		);
-	}
-	bytes = await bytes.tail;
-	throw new Error("TODO");
-}
-
 const CHAR_0 = '0'.charCodeAt(0);
 const CHAR_9 = '9'.charCodeAt(0);
 const CHAR_SEMICOLON = ';'.charCodeAt(0);
