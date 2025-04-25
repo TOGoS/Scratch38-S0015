@@ -1,7 +1,7 @@
+import Peekerator from './src/lib/ts/Peekerator.ts';
 import { KeyPressEvent, MouseEvent, MousePressEvent, MouseScrollEvent } from "https://deno.land/x/tui@2.1.11/src/input_reader/types.ts";
 import { toAsyncIterable, toList } from "./src/lib/ts/asynciterableutil.ts";
 import { assertEquals } from "https://deno.land/std@0.165.0/testing/asserts.ts";
-import { textEncoder } from "../SG-P28/wbbconnector.ts";
 
 async function* toBytes(chunks : Iterable<Uint8Array>) {
 	for await( const chunk of chunks ) {
@@ -32,31 +32,11 @@ const EMPTY_PARAMS : number[] = [];
 
 //// Peekable iterable
 
-class Peekeratable<T, TReturn=any, TNext=any> implements AsyncIterator<T, TReturn, TNext> {
-	#queued : T[] = [];
-	#wrapped : AsyncIterator<T>;
-	constructor(wrapped:AsyncIterator<T>) {
-		this.#wrapped = wrapped;
-	}
-	
-	unshift(item:T) {
-		this.#queued.unshift(item);
-	}
-	next(...whatever: [] | [TNext]): Promise<IteratorResult<T, TReturn>> {
-		const shifted = this.#queued.shift();
-		if( shifted != undefined ) {
-			return Promise.resolve({done: false, value: shifted});
-		} else {
-			return this.#wrapped.next(...whatever);
-		}
-	}
-}
-
 const CHAR_0 = '0'.charCodeAt(0);
 const CHAR_9 = '9'.charCodeAt(0);
 const CHAR_SEMICOLON = ';'.charCodeAt(0);
 
-async function readNum(byteStream:Peekeratable<number>) : Promise<number|undefined> {
+async function readNum(byteStream:Peekerator<number>) : Promise<number|undefined> {
 	let value : number|undefined = undefined;
 	while( true ) {
 		const dig = await byteStream.next();
@@ -78,7 +58,7 @@ function charCodeToString(byte:number) : string {
 	return textDecoder.decode(new Uint8Array([byte]));
 }
 
-async function readCharish(byteStream:Peekeratable<number>) : Promise<Charish> {
+async function readCharish(byteStream:Peekerator<number>) : Promise<Charish> {
 	const esc = await byteStream.next();
 	if( esc.done ) {
 		return null;
@@ -115,7 +95,7 @@ async function readCharish(byteStream:Peekeratable<number>) : Promise<Charish> {
 }
 
 async function* toCharishes(byteStream:AsyncIterable<number>, includeEof:boolean=false) : AsyncIterable<Charish> {
-	const iter = new Peekeratable(byteStream[Symbol.asyncIterator]());
+	const iter = new Peekerator(byteStream[Symbol.asyncIterator]());
 	while( true ) {
 		const charish = await readCharish(iter);
 		if( charish == null ) {
