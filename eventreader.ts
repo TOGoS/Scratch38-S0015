@@ -2,8 +2,9 @@ import Peekerator from './src/lib/ts/Peekerator.ts';
 import { KeyPressEvent, MouseEvent, MousePressEvent, MouseScrollEvent } from "https://deno.land/x/tui@2.1.11/src/input_reader/types.ts";
 import { toAsyncIterable, toList } from "./src/lib/ts/asynciterableutil.ts";
 import { assertEquals } from "https://deno.land/std@0.165.0/testing/asserts.ts";
+import { decodeBuffer } from 'https://deno.land/x/tui@2.1.11/mod.ts';
 
-async function* toBytes(chunks : Iterable<Uint8Array>) {
+async function* toBytes(chunks : AsyncIterable<Uint8Array>) {
 	for await( const chunk of chunks ) {
 		for( const byte of chunk ) {
 			yield byte;
@@ -11,22 +12,13 @@ async function* toBytes(chunks : Iterable<Uint8Array>) {
 	}
 }
 
-interface KeyEvent {
-	type: "Key",
-	text: string,
-	char: string,
-	shift: boolean,
-	control: boolean,
-}
-
-
 interface EscapeSequence {
 	type: "EscapeSequence",
 	code1 : string; // The character directly following the escape
 	params : number[];
 	code2? : string; // The character following the parameters, if any
 }
-type Charish = number | EscapeSequence | null;
+type Charish = number | EscapeSequence;
 
 const EMPTY_PARAMS : number[] = [];
 
@@ -58,7 +50,7 @@ function charCodeToString(byte:number) : string {
 	return textDecoder.decode(new Uint8Array([byte]));
 }
 
-async function readCharish(byteStream:Peekerator<number>) : Promise<Charish> {
+async function readCharish(byteStream:Peekerator<number>) : Promise<Charish|null> {
 	const esc = await byteStream.next();
 	if( esc.done ) {
 		return null;
@@ -90,8 +82,14 @@ async function readCharish(byteStream:Peekerator<number>) : Promise<Charish> {
 				}
 			}
 		}
+	} else {
+		// TODO: Parse properly.  Until then, these are just 'alt key down'
+		return {
+			type: "EscapeSequence",
+			code1: charCodeToString(code1.value),
+			params: EMPTY_PARAMS,
+		}
 	}
-	throw new Error(`TODO: readEscapeSequence for char ${charCodeToString(code1.value)}`);
 }
 
 async function* toCharishes(byteStream:AsyncIterable<number>, includeEof:boolean=false) : AsyncIterable<Charish> {
@@ -123,11 +121,78 @@ Deno.test("read a longer '[' escape sequence", async () => {
 });
 
 
-function charishToInputEvent(charish:Charish) : KeyEvent {
-	throw new Error("TODO: charishToInputEvent");
+
+
+type SpecialCharName = "escape"|"enter"; // etc
+
+interface KeyEvent {
+	charish?: Charish, // The charish that encoded this event
+	type: "Key",
+	char: string, // e.g. "A"
+	lowercaseChar: string, // e.g. "a"
+	special?: SpecialCharName, // Name of special key
+	meta: boolean,
+	shift: boolean,
+	control: boolean,
 }
 
-async function* inputEvents(chunks : Iterable<Uint8Array>) : AsyncIterable<KeyEvent> {
+const seeAlso = decodeBuffer; // Here so you can ctrl+click it in VS code for inspiration
+
+function charishToInputEvent(charish:Charish, metaDown:boolean=false) : KeyEvent {
+	if( typeof(charish) == 'number' ) {
+		if( charish >=  0 && charish < 32 ) {
+			return {
+				type: "Key",
+				char         : charCodeToString(charish),
+				lowercaseChar: charCodeToString(charish+96),
+				shift  : true,
+				control: true,
+				meta   : metaDown,
+			}
+		} if( charish >= 32 && charish < 64 ) {
+			return {
+				type: "Key",
+				char         : charCodeToString(charish),
+				lowercaseChar: charCodeToString(charish+64),
+				shift  : false,
+				control: true,
+				meta   : metaDown,
+			}
+		} else if( charish >= 64 && charish < 96 ) {
+			return {
+				type: "Key",
+				char         : charCodeToString(charish),
+				lowercaseChar: charCodeToString(charish+32),
+				shift  : true,
+				control: false,
+				meta   : metaDown,
+			}
+		} else if( charish >= 96 && charish < 128 ) {
+			return {
+				type: "Key",
+				char         : charCodeToString(charish),
+				lowercaseChar: charCodeToString(charish),
+				shift  : false,
+				control: false,
+				meta   : metaDown,
+			}
+		}
+	} else {
+		// TODO: Deal with codes properly.  Until then, assume code1 = character typed with 'alt' down.
+		return charishToInputEvent(charish.code1.charCodeAt(0), true);
+	}
+	
+	return {
+		type: "Key",
+		char: "idklol",
+		lowercaseChar: "idklol",
+		meta: false,
+		shift: false,
+		control: false	
+	}
+}
+
+async function* inputEvents(chunks : AsyncIterable<Uint8Array>) : AsyncIterable<KeyEvent> {
 	const bytes = toBytes(chunks);
 	for await( const charish of toCharishes(bytes) ) {
 		yield charishToInputEvent(charish);
@@ -137,3 +202,20 @@ async function* inputEvents(chunks : Iterable<Uint8Array>) : AsyncIterable<KeyEv
 Deno.test("read some regular key events", () => {
 	
 });
+
+Deno.stdin.setRaw(true);
+console.log(`pid ${Deno.pid}`);
+try {
+	for await( const inputEvent of inputEvents(Deno.stdin.readable) ) {
+		console.log(`charish ${JSON.stringify(inputEvent.charish)}   ->  ${JSON.stringify(inputEvent)}`);
+		if( inputEvent.char == "q" ) {
+			console.log("# Goodbye!");
+			break;
+		} else if( inputEvent.lowercaseChar == "c" && inputEvent.control ) {
+			console.log("# See ya!");
+			break;		
+		}
+	}
+} finally {
+	Deno.stdin.setRaw(false);
+}
