@@ -1,6 +1,7 @@
 import { KeyPressEvent, MouseEvent, MousePressEvent, MouseScrollEvent } from "https://deno.land/x/tui@2.1.11/src/input_reader/types.ts";
 import { toAsyncIterable, toList } from "./src/lib/ts/asynciterableutil.ts";
 import { assertEquals } from "https://deno.land/std@0.165.0/testing/asserts.ts";
+import { textEncoder } from "../SG-P28/wbbconnector.ts";
 
 async function* toBytes(chunks : Iterable<Uint8Array>) {
 	for await( const chunk of chunks ) {
@@ -99,7 +100,31 @@ async function parseCharishes(bytes:AsyncLinkedList<number>) : Promise<AsyncLink
 	throw new Error("TODO");
 }
 
+const CHAR_0 = '0'.charCodeAt(0);
+const CHAR_9 = '9'.charCodeAt(0);
+const CHAR_SEMICOLON = ';'.charCodeAt(0);
 
+async function readNum(byteStream:Peekeratable<number>) : Promise<number|undefined> {
+	let value : number|undefined = undefined;
+	while( true ) {
+		const dig = await byteStream.next();
+		if( dig.done ) {
+			return value;
+		} else if( dig.value < CHAR_0 || dig.value > CHAR_9 ) {
+			byteStream.unshift(dig.value);
+			return value;
+		} else {
+			if( value == undefined ) value = 0;
+			value = value*10 + dig.value - CHAR_0;
+		}
+	}
+}
+
+const textDecoder = new TextDecoder();
+
+function charCodeToString(byte:number) : string {
+	return textDecoder.decode(new Uint8Array([byte]));
+}
 
 async function readCharish(byteStream:Peekeratable<number>) : Promise<Charish> {
 	const esc = await byteStream.next();
@@ -112,9 +137,29 @@ async function readCharish(byteStream:Peekeratable<number>) : Promise<Charish> {
 	if( code1.done ) {
 		return null;
 	} else if( code1.value == 91 ) { // '['
-		throw new Error("TODO: read [ escape sequence");
+		const params : number[] = [];
+		while( true ) {
+			const paramValue = await readNum(byteStream);
+			if( paramValue != undefined ) {
+				params.push(paramValue);
+			} else {
+				const next = await byteStream.next();
+				if( next.done ) {
+					throw new Error("Found EOF while trying to read escape sequence");
+				} else if( next.value == CHAR_SEMICOLON ) {
+					continue;
+				} else {
+					return {
+						type: "EscapeSequence",
+						code1: "[",
+						params,
+						code2: charCodeToString(next.value),
+					}
+				}
+			}
+		}
 	}
-	throw new Error("TODO: readEscapeSequence");
+	throw new Error(`TODO: readEscapeSequence for char ${charCodeToString(code1.value)}`);
 }
 
 async function* toCharishes(byteStream:AsyncIterable<number>, includeEof:boolean=false) : AsyncIterable<Charish> {
@@ -134,11 +179,17 @@ Deno.test("read some regular charishes", async () => {
 	const charishes = await toList(toCharishes(toAsyncIterable(input)));
 	assertEquals([...input], charishes);
 });
-Deno.test("read an escape sequence", async () => {
+Deno.test("read a '[' escape sequence", async () => {
 	const input = new TextEncoder().encode("\x1b[11~");
 	const charishes = await toList(toCharishes(toAsyncIterable(input)));
 	assertEquals([{type: "EscapeSequence", code1: "[", params: [11], code2: "~"}], charishes);
 });
+Deno.test("read a longer '[' escape sequence", async () => {
+	const input = new TextEncoder().encode("\x1b[10;20H");
+	const charishes = await toList(toCharishes(toAsyncIterable(input)));
+	assertEquals([{type: "EscapeSequence", code1: "[", params: [10,20], code2: "H"}], charishes);
+});
+
 
 function charishToInputEvent(charish:Charish) : KeyEvent {
 	throw new Error("TODO: charishToInputEvent");
