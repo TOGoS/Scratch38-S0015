@@ -21,3 +21,11 @@ export async function toList<T>(iter:AsyncIterable<T>|Iterable<T>) : Promise<T[]
 		return [...iter];
 	}
 }
+
+export async function* toBytes(chunks : AsyncIterable<Uint8Array>) {
+	for await( const chunk of chunks ) {
+		for( const byte of chunk ) {
+			yield byte;
+		}
+	}
+}
