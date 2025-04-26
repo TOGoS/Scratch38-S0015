@@ -1,4 +1,4 @@
-import { decodeBuffer } from 'https://deno.land/x/tui@2.1.11/mod.ts';
+// import { decodeBuffer } from 'https://deno.land/x/tui@2.1.11/mod.ts';
 
 import { toBytes } from './asynciterableutil.ts';
 import { Charish, toCharishes } from './escapeparser.ts';
