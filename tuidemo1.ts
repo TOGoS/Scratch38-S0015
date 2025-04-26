@@ -1,4 +1,4 @@
-import { decodeBuffer } from 'https://deno.land/x/tui@2.1.11/mod.ts';
+import { inputEvents } from './src/lib/ts/inputeventparser.ts';
 import * as ansicodes from 'https://deno.land/x/tui@2.1.11/src/utils/ansi_codes.ts';
 
 // tuidemo1.ts
@@ -239,23 +239,12 @@ async function quit() {
 	clearInterval(colorUpdateInterval);
 }
 
-async function* inputEvents(stdin : ReadableStream) {
-	for await( const chunk of stdin ) {
-		// TODO: Roll own decoding; this one merges multiple keystrokes into one;
-		// typing "escape" really fast is indistinguishable from the event
-		// representation of the "escape" key!
-		for (const event of decodeBuffer(chunk)) {
-			yield {key: event.key, ctrl: event.ctrl, meta: event.meta, shift: event.shift};
-		}
-	}
-}
-
 try {
 	for await(const evt of inputEvents(input)) {
 		log(`Read event: ${JSON.stringify(evt)}`);
-		if( evt.key == "q" ) {
+		if( evt.char == "\x03" || evt.char == "q" ) {
 			await quit();
-		} else if( evt.key == "c" ) {
+		} else if( evt.char == "r" ) { // 'r' for redraw
 			needClear = true;
 			canv.requestRedraw();
 		}
