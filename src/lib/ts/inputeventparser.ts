@@ -1,4 +1,4 @@
-// import { decodeBuffer } from 'https://deno.land/x/tui@2.1.11/mod.ts';
+import { decodeBuffer } from 'https://deno.land/x/tui@2.1.11/mod.ts';
 
 import { toBytes } from './asynciterableutil.ts';
 import { Charish, toCharishes } from './escapeparser.ts';
@@ -20,39 +20,36 @@ interface KeyEvent {
 
 function charishToInputEvent(charish:Charish, metaDown:boolean=false) : KeyEvent {
 	if( typeof(charish) == 'number' ) {
+		const char = String.fromCharCode(charish);
 		if( charish >=  0 && charish < 32 ) {
 			return {
+				charish,
 				type: "Key",
-				char         : String.fromCharCode(charish),
+				char         : char,
 				lowercaseChar: String.fromCharCode(charish+96),
-				shift  : true,
-				control: true,
-				meta   : metaDown,
-			}
-		} if( charish >= 32 && charish < 64 ) {
-			return {
-				type: "Key",
-				char         : String.fromCharCode(charish),
-				lowercaseChar: String.fromCharCode(charish+64),
 				shift  : false,
 				control: true,
 				meta   : metaDown,
 			}
-		} else if( charish >= 64 && charish < 96 ) {
+		} else if( charish >= 64 && charish < 91 ) {
+			// Uppercase letters
 			return {
+				charish,
 				type: "Key",
-				char         : String.fromCharCode(charish),
+				char         : char,
 				lowercaseChar: String.fromCharCode(charish+32),
 				shift  : true,
 				control: false,
 				meta   : metaDown,
 			}
-		} else if( charish >= 96 && charish < 128 ) {
+		} else {
+			// Everything else return as-is
 			return {
+				charish,
 				type: "Key",
-				char         : String.fromCharCode(charish),
-				lowercaseChar: String.fromCharCode(charish),
-				shift  : false,
+				char         : char,
+				lowercaseChar: char,
+				shift  : true,
 				control: false,
 				meta   : metaDown,
 			}
@@ -60,15 +57,6 @@ function charishToInputEvent(charish:Charish, metaDown:boolean=false) : KeyEvent
 	} else {
 		// TODO: Deal with codes properly.  Until then, assume code1 = character typed with 'alt' down.
 		return charishToInputEvent(charish.code1.charCodeAt(0), true);
-	}
-	
-	return {
-		type: "Key",
-		char: "idklol",
-		lowercaseChar: "idklol",
-		meta: false,
-		shift: false,
-		control: false	
 	}
 }
 
