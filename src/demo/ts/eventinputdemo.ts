@@ -7,10 +7,10 @@ try {
 	console.log("# Welcome to input event reader demo.  Type 'q' or control+'c' to quit.")
 	for await( const inputEvent of inputEvents(Deno.stdin.readable) ) {
 		console.log(`charish ${JSON.stringify(inputEvent.charish)}   ->  ${JSON.stringify(inputEvent)}`);
-		if( inputEvent.char == "q" ) {
+		if( inputEvent.key == "q" ) {
 			console.log("# Goodbye!");
 			break;
-		} else if( inputEvent.lowercaseChar == "c" && inputEvent.control ) {
+		} else if( inputEvent.key == "c" && inputEvent.ctrlKey ) {
 			console.log("# See ya!");
 			break;
 		}

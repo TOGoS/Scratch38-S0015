@@ -242,9 +242,9 @@ async function quit() {
 try {
 	for await(const evt of inputEvents(input)) {
 		log(`Read event: ${JSON.stringify(evt)}`);
-		if( evt.char == "\x03" || evt.char == "q" ) {
+		if( evt.key == "\x03" || evt.key == "q" ) {
 			await quit();
-		} else if( evt.char == "r" ) { // 'r' for redraw
+		} else if( evt.key == "r" ) { // 'r' for redraw
 			needClear = true;
 			canv.requestRedraw();
 		}

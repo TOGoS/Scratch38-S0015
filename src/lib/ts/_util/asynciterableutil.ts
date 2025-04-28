@@ -29,3 +29,7 @@ export async function* toBytes(chunks : AsyncIterable<Uint8Array>) {
 		}
 	}
 }
+
+export async function* toChunks(data:string|Uint8Array) : AsyncIterable<Uint8Array> {
+	yield typeof(data) == 'string' ? new TextEncoder().encode(data) : data;
+}
