@@ -1,5 +1,5 @@
-import { toBytes } from 'https://deno.land/x/scratch38s15@0.0.3/src/lib/ts/asynciterableutil.ts';
-import { toCharishes } from 'https://deno.land/x/scratch38s15@0.0.3/src/lib/ts/escapeparser.ts';
+import { toBytes } from 'https://deno.land/x/scratch38s15@0.0.5/src/lib/ts/_util/asynciterableutil.ts';
+import { toCharishes } from 'https://deno.land/x/scratch38s15@0.0.5/src/lib/ts/terminput/escapeparser.ts';
 
 try {
 	console.log("Welcome.  Press some keys if you'd like.  Hit 'q' or control+'c' to quit.");

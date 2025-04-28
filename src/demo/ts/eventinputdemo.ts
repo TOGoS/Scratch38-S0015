@@ -1,5 +1,4 @@
-
-import { inputEvents } from '../../lib/ts/terminput/inputeventparser.ts';
+import { inputEvents } from 'https://deno.land/x/scratch38s15@0.0.5/src/lib/ts/terminput/inputeventparser.ts';
 
 Deno.stdin.setRaw(true);
 console.log(`pid ${Deno.pid}`);
