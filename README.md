@@ -9,7 +9,7 @@ See [charishdemo.ts](./src/demo/ts/charishdemo.ts) for example.
 
 
 Streams of charishes can in turn be translated into 'input events'.
-See [eventreader.ts](./src/demo/ts/eventinutdemo.ts) for example.
+See [eventreader.ts](./src/demo/ts/eventinputdemo.ts) for example.
 
 
 There's also some stuff about box drawing buried in here.
