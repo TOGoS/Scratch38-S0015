@@ -165,7 +165,11 @@ function toWidthHeight(consoleSize:{rows:number,columns:number}) : {width:number
 }
 
 const rowsColsVar = new BasicReactor(Deno.consoleSize());
-Deno.addSignalListener("SIGWINCH", () => rowsColsVar.update(Deno.consoleSize()));
+try {
+	Deno.addSignalListener("SIGWINCH", () => rowsColsVar.update(Deno.consoleSize()));
+} catch( e ) {
+	console.warn(`Failed to register SIGWINCH handler: ${e}`);
+}
 const screenSizeVar = rowsColsVar.map(toWidthHeight);
 
 const screenSizeFormattedVar = screenSizeVar.then(s => s == undefined ? 'undefined' : `${s.width} x ${s.height}`, 'undefined');
@@ -246,6 +250,7 @@ try {
 			await quit();
 		} else if( evt.key == "r" ) { // 'r' for redraw
 			needClear = true;
+			rowsColsVar.update(Deno.consoleSize())
 			canv.requestRedraw();
 		}
 	}
