@@ -12,6 +12,30 @@ Deno.test("read some regular key events", () => {
 Deno.test("read some funky key events", () => {
 	// TODO!
 });
+Deno.test("read enter", async () => {
+	const actualEvents = await toList(inputEvents(toChunks("\x0D")));
+	assertEquals(actualEvents, [{
+		charish: 13,
+		type: 'Key',
+		key: "Enter",
+		shiftKey: false,
+		metaKey: false,
+		ctrlKey: false,
+	}]);
+});
+
+Deno.test("read arrow up", async () => {
+	const actualEvents = await toList(inputEvents(toChunks("\x1b[A")));
+	assertEquals(actualEvents, [{
+		charish: { type: 'EscapeSequence', code1: '[', params:[], code2: 'A' },
+		type: 'Key',
+		key: "ArrowUp",
+		shiftKey: false,
+		metaKey: false,
+		ctrlKey: false,
+	}]);
+});
+
 Deno.test("read a backspace", async () => {
 	const actualEvents = await toList(inputEvents(toChunks("\x7f")));
 	assertEquals(actualEvents, [{
@@ -22,7 +46,6 @@ Deno.test("read a backspace", async () => {
 		metaKey: false,
 		ctrlKey: false,
 	}]);
-
 });
 Deno.test("read an F1", async () => {
 	const actualEvents = await toList(inputEvents(toChunks("\x1b[11~")));

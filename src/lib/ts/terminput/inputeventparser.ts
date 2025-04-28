@@ -40,17 +40,26 @@ function keyFromTildeCode(code:number) : string {
 
 function keyFromLetterCode(code:string) : string {
 	switch( code ) {
-	case "A": return "Up";
-	case "B": return "Down";
-	case "C": return "Right";
-	case "D": return "Left";
+	case "A": return "ArrowUp";
+	case "B": return "ArrowDown";
+	case "C": return "ArrowRight";
+	case "D": return "ArrowLeft";
 	default: return "Unidentified";
 	}
 }
 
 function charishToInputEvent(charish:Charish, metaDown:boolean=false) : KeyEvent {
 	if( typeof(charish) == 'number' ) {
-		if( charish >=  0 && charish < 32 ) {
+		if( charish == 13 ) {
+			return {
+				charish,
+				type: "Key",
+				key       : "Enter",
+				shiftKey  : false,
+				ctrlKey   : false,
+				metaKey   : metaDown,
+			}
+		} if( charish >=  0 && charish < 32 ) {
 			return {
 				charish,
 				type: "Key",
