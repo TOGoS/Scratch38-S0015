@@ -1,3 +1,0 @@
-#!/bin/bash
-
-exec deno run --allow-env=NO_COLOR tuidemo1.ts

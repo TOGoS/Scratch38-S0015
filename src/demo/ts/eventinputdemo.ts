@@ -1,10 +1,10 @@
 
-import { inputEvents } from './src/lib/ts/inputeventparser.ts';
+import { inputEvents } from '../../lib/ts/terminput/inputeventparser.ts';
 
 Deno.stdin.setRaw(true);
 console.log(`pid ${Deno.pid}`);
 try {
-	console.log("# Welcome to input event tester.  Type 'q' or control+'c' to quit.")
+	console.log("# Welcome to input event reader demo.  Type 'q' or control+'c' to quit.")
 	for await( const inputEvent of inputEvents(Deno.stdin.readable) ) {
 		console.log(`charish ${JSON.stringify(inputEvent.charish)}   ->  ${JSON.stringify(inputEvent)}`);
 		if( inputEvent.char == "q" ) {

@@ -1,4 +1,4 @@
-import { inputEvents } from './src/lib/ts/inputeventparser.ts';
+import { inputEvents } from '../../lib/ts/terminput/inputeventparser.ts';
 import * as ansicodes from 'https://deno.land/x/tui@2.1.11/src/utils/ansi_codes.ts';
 
 // tuidemo1.ts

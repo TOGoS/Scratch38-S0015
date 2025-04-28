@@ -2,7 +2,7 @@ const bdchars : (string|undefined)[] = [];
 
 import { assertEquals } from "https://deno.land/std@0.165.0/testing/asserts.ts";
 
-import { BDC_PROP_MASK, BDC_PROP_VALUES, BDC_PROP_SHIFTS, BOX_DRAWING_CHAR_PROPS } from './boxcharprops.ts';
+import { BDC_PROP_MASK, BDC_PROP_VALUES, BDC_PROP_SHIFTS, BOX_DRAWING_CHAR_PROPS } from '../../../../src/lib/ts/termdraw/boxcharprops.ts';
 
 for( const k in BOX_DRAWING_CHAR_PROPS ) {
 	const props = BOX_DRAWING_CHAR_PROPS[k];

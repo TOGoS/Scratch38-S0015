@@ -1,6 +1,6 @@
 import { assertEquals } from "https://deno.land/std@0.165.0/testing/asserts.ts";
 import { toCharishes } from './escapeparser.ts';
-import { toAsyncIterable, toList } from "./asynciterableutil.ts";
+import { toAsyncIterable, toList } from "../_util/asynciterableutil.ts";
 
 Deno.test("read some regular charishes", async () => {
 	const input = new TextEncoder().encode("abc123");

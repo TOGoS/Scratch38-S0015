@@ -10,7 +10,7 @@ export type Charish = number | EscapeSequence;
 
 const EMPTY_PARAMS : number[] = [];
 
-import Peekerator from './Peekerator.ts';
+import Peekerator from '../_util/Peekerator.ts';
 
 const CHAR_0 = '0'.charCodeAt(0);
 const CHAR_9 = '9'.charCodeAt(0);
