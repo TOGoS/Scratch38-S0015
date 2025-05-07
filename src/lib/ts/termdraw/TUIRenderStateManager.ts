@@ -1,19 +1,19 @@
 import * as ansicodes from 'https://deno.land/x/tui@2.1.11/src/utils/ansi_codes.ts';
 
-export type TOGTUIRenderer = (writer:WritableStreamDefaultWriter) => Promise<unknown>;
+export type TUIRenderer = (writer:WritableStreamDefaultWriter) => Promise<unknown>;
 
 const textEncoder = new TextEncoder();
 
-export default class TOGTUICanvas {
+export default class TUIRenderStateManager {
 	#redrawTimeout : number|undefined = undefined;
 	#out : WritableStreamDefaultWriter;
 	#writeProm : Promise<unknown> = Promise.resolve();
-	#renderer : TOGTUIRenderer;
+	#renderer : TUIRenderer;
 	#state : "off"|"starting"|"on"|"stopping" = "off";
 	
 	constructor(
 		out:WritableStreamDefaultWriter,
-		renderer: TOGTUIRenderer
+		renderer: TUIRenderer
 	) {
 		this.#state = "off";
 		this.#out = out;
