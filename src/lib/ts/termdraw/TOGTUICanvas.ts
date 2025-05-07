@@ -49,9 +49,9 @@ export default class TOGTUICanvas {
 	async exitTui() {
 		if( this.#redrawTimeout ) clearTimeout(this.#redrawTimeout);
 		if( this.#state != "on" ) throw new Error(`Can't exit canvas; state = ${this.#state}`);
-		this.#state = "starting";
+		this.#state = "stopping";
 		await this.#write(ansicodes.USE_PRIMARY_BUFFER + ansicodes.SHOW_CURSOR);
-		this.#state = "on";
+		this.#state = "off";
 	}
 	
 	requestRedraw() {

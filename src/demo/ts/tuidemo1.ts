@@ -1,5 +1,5 @@
-import { inputEvents } from 'https://deno.land/x/scratch38s15@0.0.8/src/lib/ts/terminput/inputeventparser.ts';
-import TOGTUICanvas from 'https://deno.land/x/scratch38s15@0.0.8/src/lib/ts/termdraw/TOGTUICanvas.ts';
+import { inputEvents } from 'https://deno.land/x/scratch38s15@0.0.9/src/lib/ts/terminput/inputeventparser.ts';
+import TOGTUICanvas from 'https://deno.land/x/scratch38s15@0.0.9/src/lib/ts/termdraw/TOGTUICanvas.ts';
 import * as ansicodes from 'https://deno.land/x/tui@2.1.11/src/utils/ansi_codes.ts';
 
 // tuidemo1.ts
