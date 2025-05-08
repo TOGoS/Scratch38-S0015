@@ -1,6 +1,9 @@
 import { inputEvents } from '../../lib/ts/terminput/inputeventparser.ts';
 import TOGTUICanvas from '../../lib/ts/termdraw/TUIRenderStateManager.ts';
 import * as ansicodes from 'https://deno.land/x/tui@2.1.11/src/utils/ansi_codes.ts';
+import SpanMan from '../../lib/ts/termdraw/SpanMan.ts';
+import { toAnsi } from '../../lib/ts/termdraw/ansi.ts';
+import PSTextSpan from '../../lib/ts/termdraw/PSTextSpan.ts';
 
 // tuidemo1.ts
 const colors = [
@@ -55,8 +58,14 @@ class BasicReactor<T> implements Reactor<T> {
 			for( const l of this.#updateListeners ) l(v);
 		}
 	}
+	set value(v:T) {
+		this.update(v, false);
+	}
 	get value() : T {
 		return this.#value;
+	}
+	updateBy(map: (x:T)=>T) : void {
+		this.update(map(this.#value));
 	}
 	addUpdateListener(callback:(v:T)=>void ) : void {
 		this.#updateListeners.push(callback);
@@ -113,18 +122,81 @@ const screenSizeFormattedVar = screenSizeVar.then(s => s == undefined ? 'undefin
 
 const textEncoder = new TextEncoder();
 
+let helloX = 4;
+const topSpanId = 2;
+const botSpanId = 3;
+const helloSpanId = 4;
+const DEFAULT_STYLE = '\x1b[0m';
+function makeHelloSpan(helloX:number) : PSTextSpan {
+	return {
+		classRef: 'x:PSTextSpan',
+		x: helloX, y: 2, z: 3,
+		style: DEFAULT_STYLE,
+		text: "Hello!",
+		width: 6,
+	};
+}
+function makeRuleSpan(x:number, y:number, width:number) : PSTextSpan {
+	return {
+		classRef: 'x:PSTextSpan',
+		x, y, z: 0,
+		width,
+		style: DEFAULT_STYLE,
+		text: "#".repeat(width)
+	}
+}
+const spanManVar = new BasicReactor(new SpanMan(new Map([
+	[1, {
+		classRef: 'x:PSTextSpan',
+		x: 0, y: 0, z: 0,
+		style: colors[colorIndex],
+		text: "Foo",
+		width: 3,
+	}],
+	[helloSpanId, makeHelloSpan(helloX)],
+]), {
+	worldX: 0, worldY: 0,
+	screenX: 2, screenY: 2,
+	width: 20, height: 20
+}));
+
+rowsColsVar.addUpdateListener(size =>
+	spanManVar.updateBy(spanMan => {
+		const margin = {x:2, y:1}; // Just to show that position on screen does not have to = position in virtual 'world'
+		const oldVr = spanMan.viewRect;
+		const newVr = oldVr.width == size.columns && oldVr.height == size.rows ? oldVr : {
+			worldX : oldVr. worldX,  worldY: oldVr. worldY,
+			screenX: 0+margin.x, screenY: margin.y,
+			width  :  size.columns - margin.x*2,  height:  size.rows - margin.y*2  ,
+		};
+		spanMan = spanMan.update(new Map([
+			[topSpanId, makeRuleSpan(newVr.worldX, newVr.worldY, newVr.width)],
+			[botSpanId, makeRuleSpan(newVr.worldX, newVr.worldY + newVr.height-1, newVr.width)],
+		]));
+		return spanMan.withViewRect(newVr);
+	})
+);
+
 const canv = new TOGTUICanvas(
 	outWriter,
 	async (out) => {
 		++drawCount;
 		
-		function write(thing:string) {
+		function write(thing:string) : Promise<void> {
 			return out.write(textEncoder.encode(thing));
 		}
-		function writeLine(thing:string) {
+		function writeLine(thing:string) : Promise<void> {
 			return write(thing+"\n");
 		}
 		
+		const {newState, output} = spanManVar.value.render();
+		for( const out of output ) {
+			await write(toAnsi(out));
+		}
+		// Hmm, this might trigger a loop:
+		spanManVar.value = newState;
+		
+		/*
 		if( needClear ) {
 			needClear = false;
 			await write(ansicodes.CLEAR_SCREEN);
@@ -142,9 +214,12 @@ const canv = new TOGTUICanvas(
 		await writeLine(screenSizeFormattedVar.value);
 		for( const m of messages ) {
 			await writeLine(m);
-		}	
+		}
+		*/
 	}
 );
+
+spanManVar.addUpdateListener(_f => canv.requestRedraw());
 
 screenSizeFormattedVar.addUpdateListener(_f => {
 	needClear = true;
@@ -162,14 +237,21 @@ function log(message:string) {
 	}
 }
 
-function updateColor() {
+function updateScene() {
+	helloX += 1;
+	if( helloX >= screenSizeVar.value.width - 4 ) helloX = -6;
+	spanManVar.updateBy(spanMan => {
+		return spanMan.update(new Map([
+			[helloSpanId, makeHelloSpan(helloX)]
+		]));
+	});
 	colorIndex = (colorIndex + 1) % colors.length;
-	canv.requestRedraw();
+	// canv.requestRedraw();
 }
 
 Deno.stdin.setRaw(true);
 await canv.enterTui();
-const colorUpdateInterval = setInterval(updateColor, 1000);
+const colorUpdateInterval = setInterval(updateScene, 500);
 
 const input = Deno.stdin.readable;
 

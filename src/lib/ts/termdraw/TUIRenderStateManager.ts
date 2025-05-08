@@ -50,7 +50,7 @@ export default class TUIRenderStateManager {
 		if( this.#redrawTimeout ) clearTimeout(this.#redrawTimeout);
 		if( this.#state != "on" ) throw new Error(`Can't exit canvas; state = ${this.#state}`);
 		this.#state = "stopping";
-		await this.#write(ansicodes.USE_PRIMARY_BUFFER + ansicodes.SHOW_CURSOR);
+		await this.#write(ansicodes.USE_PRIMARY_BUFFER + ansicodes.SHOW_CURSOR + "\n");
 		this.#state = "off";
 	}
 	
