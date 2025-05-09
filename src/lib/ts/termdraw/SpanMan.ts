@@ -1,23 +1,8 @@
 import PSTextSpan, { EMPTY_SPAN } from './PSTextSpan.ts';
 import DrawCommand from './DrawCommand.ts';
+import ViewportRect from './ViewportRect.ts';
 
 type SpanID = number;
-
-// Three coordinate spaces:
-// - World
-// - Screen
-// - View rect
-export interface ViewportRect {
-	// World X/Y position corresponding to ViewRect 0,0
-	worldX: number;
-	worldY: number;
-	// X/Y position on screen of top left of view rect (i.e. ViewRect's 0,0)
-	screenX: number;
-	screenY: number;
-	// Width and height of the region (in any space, because scale is always 1:1)
-	width: number;
-	height: number;
-}
 
 function translateAndTrimSpan(
 	span:PSTextSpan, offX:number, offY:number,
@@ -32,12 +17,11 @@ function translateAndTrimSpan(
 	
 	if( transX1 <= destX0 || transX0 >= destX1 ) return EMPTY_SPAN;
 	
-
 	if( transX0 >= destX0 && transX1 <= destX1 ) {
 		//if( offX == 0 && offY == 0 ) return span;
 		// Could do simpler 'no-trim' translation here.  Otherwise fall through...
 	}
-
+	
 	const clampedX0 = Math.max(transX0, destX0);
 	const clampedX1 = Math.min(transX1, destX1);
 	if( clampedX1 <= clampedX0 ) {
