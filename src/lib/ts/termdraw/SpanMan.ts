@@ -1,6 +1,8 @@
 import PSTextSpan, { EMPTY_SPAN } from './PSTextSpan.ts';
 import DrawCommand from './DrawCommand.ts';
 import ViewportRect from './ViewportRect.ts';
+import Colspan from './_util/Colspan.ts';
+import { mergeSpans } from './_util/spanmerge.ts';
 
 type SpanID = number;
 
@@ -44,27 +46,10 @@ function translateAndTrimSpan(
 	}
 }
 
-type Colspan = {x0:number,x1:number};
-
-function mergeSpans(colspans:Colspan[]) : Colspan[] {
-	// TODO
-	return colspans;
-}
-
 function withDirtyColspan(current:Colspan[], newCs:Colspan) : Colspan[] {
 	if( newCs.x0 >= newCs.x1 ) return current; // Nothing to add!
 	
-	// TODO: Could assume colspans sorted by x0
-	
-	for( let i=0; i<current.length; ++i ) {
-		const cs = current[i];
-		if( cs.x0 <= newCs.x0 && cs.x1 >= newCs.x1 ) {
-			// Already entirely in a span
-			return current;
-		}
-	}
-	
-	return mergeSpans(current.concat([newCs]).sort((a,b) => a.x0 < b.x0 ? -1 : a.x0 > b.x0 ? 1 : 0));
+	return [...mergeSpans(current, [newCs])];
 }
 
 function addDirtyRegion(into:Map<number,Colspan[]>, row:number, colspan:Colspan) {
