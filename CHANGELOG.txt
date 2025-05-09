@@ -1,0 +1,11 @@
+---------------------------------------------------------------------------------------------------
+Version: 0.0.10
+Date: 2025-05-09
+Features:
+  - Add `SpanMan` class, which can be used to track the state of many
+    `PSTextSpan`s on the screen and will generate `DrawCommand`s to update
+    the screen on demand.
+  - Currently `SpanMan` is quite dumb and will emit `DrawCommand`s to redraw
+    the entire screen every time, but the API shouldn't need to change
+    (much) to support incremental updates.
+---------------------------------------------------------------------------------------------------
