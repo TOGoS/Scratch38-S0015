@@ -26,7 +26,6 @@ let messages : string[] = [];
 let drawCount = 0;
 
 const outWriter = Deno.stdout.writable.getWriter();
-let needClear  = true;
 
 //// A stab at making 'reactive' things.
 // See also: That one SynthGen demo I made that one time,
@@ -223,7 +222,6 @@ const canv = new TOGTUICanvas(
 spanManVar.addUpdateListener(_f => canv.requestRedraw());
 
 screenSizeFormattedVar.addUpdateListener(_f => {
-	needClear = true;
 	canv.requestRedraw();
 });
 
@@ -250,28 +248,35 @@ function updateScene() {
 	// canv.requestRedraw();
 }
 
-let boingX = 0;
+let boingX = -10;
+const boingVX = 10;
 let boingY = 0;
-let boingYV = 10;
+let boingVY = 10;
+const boingAY = -5;
+const boingFps = 100;
 
 function updateBoing() {
-	boingX += 1;
-	boingY += boingYV/10;
-	boingYV -= 0.4;
+	boingX += boingVX/boingFps;
+	boingY += boingVY/boingFps;
+	boingVY += boingAY/boingFps;
+	const vw = screenSizeVar.value.width - 4;
 	const vh = screenSizeVar.value.height - 4;
 	if( boingY < 0 ) {
 		boingY = -boingY;
-		boingYV = -boingYV;
+		boingVY = -boingVY * 0.9;
 	}
 	if( boingY > vh-1 ) {
 		boingY = vh-1 - (vh-1-boingY);
-		boingYV = -boingYV;
+		boingVY = -boingVY;
 	}
+	if( boingX > vw ) boingX = -10;
 	spanManVar.updateBy(spanMan => {
 		return spanMan.update(new Map([
 			[boingSpanId, {
 				classRef: 'x:PSTextSpan',
-				x: boingX, y: screenSizeVar.value.height - 3 - Math.round(boingY), z: 3,
+				x: Math.round(boingX),
+				y: screenSizeVar.value.height - 3 - Math.round(boingY),
+				z: 3,
 				style: DEFAULT_STYLE,
 				text: "Boing!",
 				width: 6,
@@ -283,7 +288,7 @@ function updateBoing() {
 Deno.stdin.setRaw(true);
 await canv.enterTui();
 const sceneUpdateInterval = setInterval(updateScene, 500);
-const boingUpdateInterval = setInterval(updateBoing, 100);
+const boingUpdateInterval = setInterval(updateBoing, 1/boingFps);
 
 const input = Deno.stdin.readable;
 
@@ -301,9 +306,10 @@ try {
 		if( evt.key == "\x03" || evt.key == "q" ) {
 			await quit();
 		} else if( evt.key == "r" ) { // 'r' for redraw
-			needClear = true;
 			rowsColsVar.update(Deno.consoleSize())
-			canv.requestRedraw();
+			spanManVar.updateBy(spanMan => spanMan.withFullRedrawRequested());
+		} else if( evt.key == " " ) {
+			boingVY += 20;
 		}
 	}
 } catch( e ) {

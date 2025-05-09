@@ -65,13 +65,13 @@ export default class SpanMan {
 	#textSpans : ReadonlyMap<SpanID,PSTextSpan>;
 	#viewRect : ViewportRect;
 	#dirtyRegions : ReadonlyMap<number,Colspan[]>; // Relative to 'world space'
-	#fullRedrawNeeded; // For now just always redraw everything!
+	#fullRedrawRequested; // For now just always redraw everything!
 	
-	constructor(textSpans:ReadonlyMap<SpanID,PSTextSpan>, viewRect:ViewportRect, dirtyRegions:ReadonlyMap<number,Colspan[]>=emptyMap(), fullRedrawNeeded=false) {
+	constructor(textSpans:ReadonlyMap<SpanID,PSTextSpan>, viewRect:ViewportRect, dirtyRegions:ReadonlyMap<number,Colspan[]>=emptyMap(), fullRedrawRequested=true) {
 		this.#textSpans = textSpans;
 		this.#viewRect = viewRect;
 		this.#dirtyRegions = dirtyRegions;
-		this.#fullRedrawNeeded = fullRedrawNeeded;
+		this.#fullRedrawRequested = fullRedrawRequested;
 	}
 	
 	get viewRect() {
@@ -80,30 +80,30 @@ export default class SpanMan {
 	
 	update(updates:Map<SpanID,PSTextSpan>) : SpanMan {
 		const newSpans = new Map(this.#textSpans.entries());
-		const newDirtyRegions = new Map(this.#dirtyRegions.entries());
+		const newDirtyRegions = this.#fullRedrawRequested ? undefined : new Map(this.#dirtyRegions.entries());
 		
 		for( const [k,v] of updates ) {
 			// If tracking dirty regions, would need to do so here,
 			// also taking any old version of the span into account.
 			const oldSpan = this.#textSpans.get(k);
 			if( oldSpan != undefined ) {
-				addDirtyRegion(newDirtyRegions, oldSpan.y, {x0:oldSpan.x, x1:oldSpan.x+oldSpan.width});
+				if( newDirtyRegions ) addDirtyRegion(newDirtyRegions, oldSpan.y, {x0:oldSpan.x, x1:oldSpan.x+oldSpan.width});
 			}
 			if( v == undefined ) {
 				newSpans.delete(k);
 			} else {
 				newSpans.set(k, v);
-				addDirtyRegion(newDirtyRegions, v.y, {x0:v.x, x1:v.x + v.width});
+				if( newDirtyRegions ) addDirtyRegion(newDirtyRegions, v.y, {x0:v.x, x1:v.x + v.width});
 			}
 		}
-		return new SpanMan(newSpans, this.#viewRect, newDirtyRegions);
+		return new SpanMan(newSpans, this.#viewRect, newDirtyRegions ?? emptyMap(), this.#fullRedrawRequested);
+	}
+	withFullRedrawRequested() {
+		if( this.#fullRedrawRequested ) return this;
+		return new SpanMan(this.#textSpans, this.#viewRect, new Map(), true);
 	}
 	withViewRect(viewRect:ViewportRect) : SpanMan {
-		if( viewRect == this.#viewRect || this.#fullRedrawNeeded ) return this;
-		
-		// If tracking updates, will need to either
-		// add newly exposed areas or the whole screen
-		// to the dirty list.
+		if( viewRect == this.#viewRect ) return this;
 		return new SpanMan(this.#textSpans, viewRect, new Map(), true);
 	}
 	
@@ -125,27 +125,36 @@ export default class SpanMan {
 	}
 	
 	*generateDirtyRegionOutput() : Iterable<DrawCommand> {
-		for( const [row,colspans] of this.#dirtyRegions ) {
+		for( const [worldY,colspans] of this.#dirtyRegions ) {
+			if( worldY < this.#viewRect.worldY || worldY >= this.#viewRect.worldY + this.#viewRect.height ) continue;
+			
 			//console.log(`Dirty colspans on line ${row}: ${colspans}`)
 			for( const colspan of colspans ) {
-				const width = colspan.x1 - colspan.x0;
 				// TODO: Find spans on the row, sort,
 				// insert spaces in gaps, and draw that, to avoid overdraw
+				const trimmedWorldX0 = Math.max(colspan.x0, this.#viewRect.worldX);
+				const trimmedWorldX1 = Math.min(colspan.x1, this.#viewRect.worldX + this.#viewRect.width);
+				if( trimmedWorldX0 >= trimmedWorldX1 ) continue;
+				
+				const regionWidth = trimmedWorldX1 - trimmedWorldX0;
+				
 				yield {
 					classRef: 'x:PSTextSpan',
 					style: '\x1b[0m', // 'default style'
-					x: this.#viewRect.screenX + colspan.x0 - this.#viewRect.worldX,
-					y: this.#viewRect.screenY + row        - this.#viewRect.worldY,
+					x: this.#viewRect.screenX + trimmedWorldX0 - this.#viewRect.worldX,
+					y: this.#viewRect.screenY + worldY         - this.#viewRect.worldY,
 					z: 0,
-					width: width,
-					text: ' '.repeat(width),
+					width: regionWidth,
+					text: ' '.repeat(regionWidth),
 				};
+				
 				for( const out of this.generateSpanOutput(
-					colspan.x0,
-					row,
-					this.#viewRect.screenX + colspan.x0 - this.#viewRect.worldX,
-					this.#viewRect.screenY + row        - this.#viewRect.worldY,
-					width, 1 // TODO: May need to trim width, or skip if row entirely outside viewRect
+					trimmedWorldX0,
+					worldY,
+					this.#viewRect.screenX + trimmedWorldX0 - this.#viewRect.worldX,
+					this.#viewRect.screenY + worldY         - this.#viewRect.worldY,
+					trimmedWorldX1 - trimmedWorldX0,
+					1
 				) ) {
 					yield out;
 				}
@@ -157,21 +166,22 @@ export default class SpanMan {
 		// For starters, just redraw the whole screen every time!
 		// Which means there's no dirty list to bother with,
 		// so we can return this same old spanman.
-		if( this.#fullRedrawNeeded ) {
+		if( this.#fullRedrawRequested ) {
 			return {
-				newState: this,
+				newState: new SpanMan(this.#textSpans, this.#viewRect, emptyMap(), false),
 				output: [
 					{classRef:"x:ClearScreen"},
 					...this.generateSpanOutput(this.#viewRect.worldX, this.#viewRect.worldY, this.#viewRect.screenX, this.#viewRect.screenY, this.#viewRect.width, this.#viewRect.height)
-				],
+				]
 			}
-		} else if( this.#dirtyRegions.size == 0 ) {
-			return {newState: this, output: []};
-		} else {
+		} else if( this.#dirtyRegions.size > 0 ) {
 			return {
 				newState: new SpanMan(this.#textSpans, this.#viewRect, emptyMap(), false),
 				output: this.generateDirtyRegionOutput(),
-			}
+			};
+		} else {
+			// Nothing to do!
+			return {newState: this, output: []};
 		}
 	}
 }
