@@ -1,4 +1,13 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.0.11
+Date: 2025-05-09
+Changes:
+  - SpanMan will now only redraw sections of the screen that have changed
+TODO:
+  - SpanMan's partial redraws could be more efficient by indexing spans by line
+  - SpanMan could be smarter about redrawing regions by combining all relevant
+    spans into one to avoid overdraw.
+---------------------------------------------------------------------------------------------------
 Version: 0.0.10
 Date: 2025-05-09
 Features:
