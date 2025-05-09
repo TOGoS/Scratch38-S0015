@@ -126,6 +126,7 @@ let helloX = 4;
 const topSpanId = 2;
 const botSpanId = 3;
 const helloSpanId = 4;
+const boingSpanId = 5;
 const DEFAULT_STYLE = '\x1b[0m';
 function makeHelloSpan(helloX:number) : PSTextSpan {
 	return {
@@ -249,9 +250,40 @@ function updateScene() {
 	// canv.requestRedraw();
 }
 
+let boingX = 0;
+let boingY = 0;
+let boingYV = 10;
+
+function updateBoing() {
+	boingX += 1;
+	boingY += boingYV/10;
+	boingYV -= 0.4;
+	const vh = screenSizeVar.value.height - 4;
+	if( boingY < 0 ) {
+		boingY = -boingY;
+		boingYV = -boingYV;
+	}
+	if( boingY > vh-1 ) {
+		boingY = vh-1 - (vh-1-boingY);
+		boingYV = -boingYV;
+	}
+	spanManVar.updateBy(spanMan => {
+		return spanMan.update(new Map([
+			[boingSpanId, {
+				classRef: 'x:PSTextSpan',
+				x: boingX, y: screenSizeVar.value.height - 3 - Math.round(boingY), z: 3,
+				style: DEFAULT_STYLE,
+				text: "Boing!",
+				width: 6,
+			}]
+		]));
+	});
+}
+
 Deno.stdin.setRaw(true);
 await canv.enterTui();
-const colorUpdateInterval = setInterval(updateScene, 500);
+const sceneUpdateInterval = setInterval(updateScene, 500);
+const boingUpdateInterval = setInterval(updateBoing, 100);
 
 const input = Deno.stdin.readable;
 
@@ -259,7 +291,8 @@ async function quit() {
 	await canv.exitTui();
 	Deno.stdin.setRaw(false);
 	Deno.stdin.close();
-	clearInterval(colorUpdateInterval);
+	clearInterval(sceneUpdateInterval);
+	clearInterval(boingUpdateInterval);
 }
 
 try {
