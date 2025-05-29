@@ -91,3 +91,48 @@ axis-aligned bounding box that all contents will be clipped to.
 This gives a later rendering step enough information to
 ignore large chunks of the tree that are entirely disjoint
 from the area being drawn.
+
+### Tables
+
+e.g. how to represent something like
+
+```
++---------------+
+| A             |
++--------+      |
+| B      | C    |
++--------+------+
+```
+
+BoxDrawr can handle this, but how to represent it at a higher level,
+assuming there are 3 logical cells?
+
+```
+Flexy{
+	direction = "down",
+	border = "single",
+	items = [
+		A,
+		Flexy{
+			direction = "right",
+			border = "blank",
+			items = [
+				Flexy{
+					border = "single",
+					items = [ B ]
+				},
+				C
+			]
+		}
+	]
+}
+```
+
+Thicker borders override thinner borders of neighboring cells.
+
+Might want to differentiate between border char and thickness;
+here "blank" stands for 'one character thick', but invisible.
+"none" would mean zero width.
+
+I suppose borders could be specified separately for top/bottom/left/right
+of each cell, similar to in HTML.
