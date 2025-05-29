@@ -50,3 +50,44 @@ This is the conceptual model that I would like to stick with.
 In practice, components and span man are immutable state
 objects, and are probably updated in sequence in a big
 main loop that bundles input events.
+
+### Component model
+
+TUI components know their size, but not their position,
+and can be told to generate a `Map<SpanID,PSTextSpan>`
+for themselves at a given position.
+
+Hmm, but then if we have an enormous component tree and only
+want to have to visit a small part of it, we can't, because
+we always get the whole gigantic map.
+
+Maybe 'a map' isn't what's in order, but a structure that
+mirrors (potentially) the structure of the component graph.
+
+Something like...
+
+```
+Renderable =
+  | PSTextSpan
+  | { classRef:"XForm",
+      transforms : Transform[],
+      renderables:{[k:string]: Renderable} ]
+  | ...maybe some 'clip' renderable
+```
+
+The 'transformed' type does several jobs at once:
+- groups renderables (maybe they are keye)
+- allows changing position of renderables
+- allows duplicating children at multiple positions
+
+Each TUI component can render itself, returning one renderable.
+This happens recursively from the root component.
+A separate step will accept the new root renderable and
+diff it against the previous one to generate a `Map<SpanID,Span>`
+to feed to `SpanMan`.
+
+The idea behind 'maybe some clip renderable' is to indicate some
+axis-aligned bounding box that all contents will be clipped to.
+This gives a later rendering step enough information to
+ignore large chunks of the tree that are entirely disjoint
+from the area being drawn.

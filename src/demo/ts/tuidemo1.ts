@@ -1,6 +1,6 @@
 import { inputEvents } from '../../lib/ts/terminput/inputeventparser.ts';
 import TOGTUICanvas from '../../lib/ts/termdraw/TUIRenderStateManager.ts';
-import * as ansicodes from 'https://deno.land/x/tui@2.1.11/src/utils/ansi_codes.ts';
+// import * as ansicodes from 'https://deno.land/x/tui@2.1.11/src/utils/ansi_codes.ts';
 import SpanMan from '../../lib/ts/termdraw/SpanMan.ts';
 import { toAnsi } from '../../lib/ts/termdraw/ansi.ts';
 import PSTextSpan from '../../lib/ts/termdraw/PSTextSpan.ts';
