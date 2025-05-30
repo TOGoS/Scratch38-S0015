@@ -136,3 +136,66 @@ here "blank" stands for 'one character thick', but invisible.
 
 I suppose borders could be specified separately for top/bottom/left/right
 of each cell, similar to in HTML.
+
+### Hmm
+
+I started prototyping some code about `Renderable`s...
+
+```typescript
+interface TransformNode<T,C> {
+	classRef: "x:TransformNode";
+	transforms: T[];
+	children: {[k:number]: C}
+}
+interface XYPosition { x:number; y:number };
+
+type Renderable = PSTextSpan | TransformNode<XYPosition,Renderable>;
+type SpanID = number;
+
+function offsetPsTextSpan(offset: XYPosition, span: PSTextSpan): PSTextSpan {
+	if (offset.x === 0 && offset.y === 0) return span;
+	return {
+		classRef: 'x:PSTextSpan',
+		style: span.style,
+		x: span.x + offset.x,
+		y: span.y + offset.y,
+		z: span.z,
+		text: span.text,
+		width: span.width
+	};
+}
+
+function renderableToSpans(offset:XYPosition, id: SpanID, renderable : Renderable, into:Map<SpanID,PSTextSpan>) {
+	if( renderable.classRef == 'x:PSTextSpan' ) {
+		into.set(id, offsetPsTextSpan(offset, renderable));
+	} else {
+		for (const [childKey, childRenderable] of Object.entries(renderable.children)) {
+			for (const ti in renderable.transforms) {
+				const transform = renderable.transforms[ti];
+				const childId = todo("how to generate child IDs, huh?");
+				const newOffset = {
+					x: offset.x + transform.x,
+					y: offset.y + transform.y,
+				};
+				renderableToSpans(newOffset, childId, childRenderable, into);
+			}
+		}
+	}
+}
+```
+
+A problem became apparent: since the Renderable graph is
+a directed graph, not a tree, leaf nodes can appear
+multiple times, so I would need some way of generating
+span IDs.
+
+CoPilot helped fill in some of the easy bits and generated
+some stuff by adding the transform ID multiplied by 1000 something,
+but it had to `parseInt` the key, which wasn't great.
+
+Maybe I shouldn't mess with span IDs at all.  Maybe SpanMan
+should just take a `Set<PSTextSpan>` instead of a `Map<SpanID,PSTextSpan>`?
+
+Or maybe I should take an entirely different approach,
+using a big raster of character data instead of messing with
+an updatable collection of spans.
