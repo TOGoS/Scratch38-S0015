@@ -16,3 +16,6 @@ There's also some stuff about box drawing buried in here.
 
 This project is currently 'just a bunch of code',
 isn't very well organized, and may change drastically between versions.
+
+
+See [DEVLOG.md](./DEVLOG.md) for stream of consciousness as I try to figure out what I'm trying to build.

@@ -1,4 +1,6 @@
-## 2025-05-29: Brainstorming about component and rendering architecture
+## 2025-05-29
+
+Brainstorming about component and rendering architecture.
 
 At a high level, data flows between components thusly:
 
