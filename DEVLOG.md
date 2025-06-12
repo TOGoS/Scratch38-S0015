@@ -186,3 +186,31 @@ Q: Why would a raster thingy be better than a collection of spans?
 A: Because then we wouldn't have to care about span identity.
 Components could "just blit themselves to the raster"
 (which could, as a side-effect, track which sections got updated).
+
+## 2025-06-11
+
+More thoughts on component model and rendering.
+
+The easy / simple / pure-functional approach should
+probably start by just blitting everything to some raster every time.
+Easy to diff the raster against the previous version
+to generated updates to send to the terminal.
+
+Want to track changes to individual widgets?
+Then you have to know which widget is updated
+
+Want to only update the part of the screen changed?
+Then you need to know for each widget changed where it is on the screen.
+
+Both of which is a bit at odds with the 'easy / pure functional' approach
+
+Don't really need to bother with a component tree --
+just re-render the whole TUI every time there's a change
+
+OTHERWISE....if you want to be super efficient,
+make components mutable objects that know when they need to be re-rendered,
+and emit PSTextSpan patches.
+
+This could also work, but is going to be messier.
+It is probably easier to go the functional approach
+and then find ways to optimize.
