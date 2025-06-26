@@ -214,3 +214,17 @@ and emit PSTextSpan patches.
 This could also work, but is going to be messier.
 It is probably easier to go the functional approach
 and then find ways to optimize.
+
+## 2025-06-26
+
+### 14:06 - dinking with TextRasters
+
+Added a `TextRaster` type and some functions to work with them
+in `rasterdemo.ts`, which includes some unit tests.
+
+Got some 'help' from CoPilot which may have just made it
+messier and take longer.
+
+There's some overlap in functionality between
+the raster updating function and things that `SpanMan`
+does during `generateSpanOutput`, which feels a little silly.
