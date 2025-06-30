@@ -1,6 +1,9 @@
 import * as ansicodes from 'https://deno.land/x/tui@2.1.11/src/utils/ansi_codes.ts';
 import DrawCommand from './DrawCommand.ts';
 
+export const RESET_FORMATTING = "\x1b[0m";
+export const RED_TEXT = "\x1b[31m";
+
 export function ansiEscape(text:string) : string {
 	return text.replaceAll("\x1b", "\u241B");
 }

@@ -228,3 +228,20 @@ messier and take longer.
 There's some overlap in functionality between
 the raster updating function and things that `SpanMan`
 does during `generateSpanOutput`, which feels a little silly.
+
+## 2025-06-30
+
+### 14:08 - Simplify the raster business
+
+...by actually storing the raster as an array of characters and styles.
+
+Added [TextRaster2](./src/lib/ts/termdraw/TextRaster2.ts), which defines
+the (very simple) data structure, and [raster2demo](./src/demo/ts/raster2demo.ts),
+which, like [rasterdemo](./src/demo/ts/rasterdemo.ts), is currently just unit tests.
+
+TODO: Implement functions to apply draw commands to a raster
+to produce a new raster and list of updated regions
+(which for simplicity of implementation could just be one
+big region, or one region per line).
+
+TODO: An actual demo, where widgets are drawn.
