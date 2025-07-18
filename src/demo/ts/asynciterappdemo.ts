@@ -12,6 +12,7 @@ import { blitToRaster, createUniformRaster, textRaster2ToDrawCommands } from '..
 import { RED_TEXT, RESET_FORMATTING, toAnsi } from '../../lib/ts/termdraw/ansi.ts';
 import { iterateAndReturn, mergeAsyncIterables } from '../../lib/ts/_util/asynciterableutil.ts';
 import { Signal } from 'https://deno.land/x/tui@2.1.11/mod.ts';
+import { reset } from 'https://deno.land/std@0.165.0/fmt/colors.ts';
 
 interface ScreenResizeEvent {
 	type: "terminalresize",
@@ -60,7 +61,7 @@ function writerReader<T>() : WriterReader<T> {
 	};
 }
 
-async function gemerateScreenResizeEvents(abortSignal:AbortSignal, dest:(evt:ScreenResizeEvent)=>unknown) : Promise<void> {
+function gemerateScreenResizeEvents(abortSignal:AbortSignal, dest:(evt:ScreenResizeEvent)=>unknown) : {poke: ()=>void, wait: () => Promise<void>} {
 	let prevSize :{ columns: number, rows: number }|undefined = undefined;
 	function poke() {
 		const size = Deno.consoleSize();
@@ -75,15 +76,23 @@ async function gemerateScreenResizeEvents(abortSignal:AbortSignal, dest:(evt:Scr
 		}
 	}
 	
-	try {
-		Deno.addSignalListener("SIGWINCH", () => poke);
-	} catch( e ) {
-		console.error("Failed to addSignalListener('SIGWINCH'); oh well.");
+	async function run() : Promise<void> {
+		try {
+			Deno.addSignalListener("SIGWINCH", () => poke);
+		} catch( e ) {
+			console.error("Failed to addSignalListener('SIGWINCH'); oh well.");
+		}
+		
+		while( !abortSignal.aborted ) {
+			await poke();
+			await sleepMs(5000, abortSignal);
+		}
 	}
+	const runPromise = run();
 	
-	while( !abortSignal.aborted ) {
-		await poke();
-		await sleepMs(5000, abortSignal);
+	return {
+		poke,
+		wait() { return runPromise; }
 	}
 }
 
@@ -101,15 +110,29 @@ async function runTuiApp<R>(stdin:AsyncIterable<Uint8Array>, app:TUIApp<R>, stdo
 		return Promise.resolve();
 	});
 	
+	const checkScreenSizeOnEveryInputEvent : boolean = true;
+	
 	const abortController = new AbortController();
 	
 	const screenResizeStream : WriterReader<ScreenResizeEvent> = writerReader();
 	const screenResizeWriter = screenResizeStream.input.getWriter();
-	gemerateScreenResizeEvents(abortController.signal, evt => screenResizeWriter.write(evt)).then(_void => screenResizeWriter.close());
+	const screenResizeEventGenerator = gemerateScreenResizeEvents(abortController.signal, evt => screenResizeWriter.write(evt))
+	screenResizeEventGenerator.wait().then(_void => screenResizeWriter.close());
 	
-	const allInputEvents : AsyncIterable<AppInputEvent> = mergeAsyncIterables<AppInputEvent>([inputEvents(stdin), screenResizeStream.output]);
+	const keyInputs = inputEvents(stdin);
+	const KeyshInputs = checkScreenSizeOnEveryInputEvent ?
+		(async function*(inputs) {
+			for await( const input of inputs ) {
+				screenResizeEventGenerator.poke();
+				yield input;
+			}
+		})(keyInputs) : keyInputs;
+
+	const allInputEvents : AsyncIterable<AppInputEvent> = mergeAsyncIterables<AppInputEvent>([KeyshInputs, screenResizeStream.output]);
 	const outputEvents = app(allInputEvents);
 	const retVal = await iterateAndReturn(outputEvents, outputEvent => {
+		// This is the wrong place; should be 
+		
 		switch( outputEvent.type ) {
 		case 'print':
 			return stdout.write(textEncoder.encode(outputEvent.text));
@@ -147,7 +170,6 @@ if( import.meta.main ) {
 			rast = blitToRaster(rast, {x:screenSize.x - 3, y:screenSize.y-3}, redSquare, {x0:0, y0:0, x1:2, y1:2});
 			return rast;
 		}
-		
 		for await( const inputEvent of inputEvents ) {
 			if( inputEvent.type == "terminalresize" ) {
 				screenSize = {x: inputEvent.width, y: inputEvent.height };
@@ -179,9 +201,11 @@ if( import.meta.main ) {
 					rasterGenerator: generateRaster
 				};
 			} else {
-				if( !inTui )yield {
-					type: "print",
-					text: `Ooh, an input event: ${JSON.stringify(inputEvent)}\n`
+				if( !inTui ) {
+					yield {
+						type: "print",
+						text: `Ooh, an input event: ${JSON.stringify(inputEvent)}\n`
+					};
 				}
 			}
 		}
