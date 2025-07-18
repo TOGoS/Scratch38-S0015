@@ -47,13 +47,6 @@ function sleepMs(millis:number, abortSignal:AbortSignal) : Promise<void> {
 	});
 }
 
-async function* generateAsyncIterator<T>(generator:() => T, delayMs : number, abortSignal:AbortSignal) : AsyncIterable<T> {
-	while( !abortSignal.aborted ) {
-		yield generator();
-		await sleepMs(delayMs, abortSignal);
-	}
-}
-
 interface WriterReader<T> {
 	input:WritableStream<T>;
 	output:ReadableStream<T>;

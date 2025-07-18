@@ -81,3 +81,20 @@ export async function iterateAndReturn<I,R>(iterable:AsyncIterable<I,R>, itemCal
 	}
 	return entry.value;
 }
+
+function sleepMs(millis:number, abortSignal:AbortSignal) : Promise<void> {
+	return new Promise((resolve,reject) => {
+		const timeout = setTimeout(resolve, millis);
+		abortSignal.addEventListener("abort", () => {
+			clearTimeout(timeout);
+			reject(abortSignal.reason);
+		});
+	});
+}
+
+export async function* generateAsyncIterator<T>(generator:() => T, delayMs : number, abortSignal:AbortSignal) : AsyncIterable<T> {
+	while( !abortSignal.aborted ) {
+		yield generator();
+		await sleepMs(delayMs, abortSignal);
+	}
+}
