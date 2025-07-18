@@ -7,7 +7,6 @@ export interface EscapeSequence {
 }
 export type Charish = number | EscapeSequence;
 
-
 const EMPTY_PARAMS : number[] = [];
 
 import Peekerator from '../_util/Peekerator.ts';

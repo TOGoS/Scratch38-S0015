@@ -16,7 +16,7 @@ Deno.test("read enter", async () => {
 	const actualEvents = await toList(inputEvents(toChunks("\x0D")));
 	assertEquals(actualEvents, [{
 		charish: 13,
-		type: 'Key',
+		type: 'keypress',
 		key: "Enter",
 		shiftKey: false,
 		metaKey: false,
@@ -28,7 +28,7 @@ Deno.test("read arrow up", async () => {
 	const actualEvents = await toList(inputEvents(toChunks("\x1b[A")));
 	assertEquals(actualEvents, [{
 		charish: { type: 'EscapeSequence', code1: '[', params:[], code2: 'A' },
-		type: 'Key',
+		type: 'keypress',
 		key: "ArrowUp",
 		shiftKey: false,
 		metaKey: false,
@@ -40,7 +40,7 @@ Deno.test("read a backspace", async () => {
 	const actualEvents = await toList(inputEvents(toChunks("\x7f")));
 	assertEquals(actualEvents, [{
 		charish: 127,
-		type: 'Key',
+		type: 'keypress',
 		key: "Backspace",
 		shiftKey: false,
 		metaKey: false,
@@ -56,7 +56,7 @@ Deno.test("read an F1", async () => {
 			params: [11],
 			code2: "~",
 		},
-		type: 'Key',
+		type: 'keypress',
 		key: "F1",
 		shiftKey: false,
 		metaKey: false,
@@ -73,7 +73,7 @@ Deno.test("read an F8", async () => {
 			params: [19],
 			code2: "~",
 		},
-		type: 'Key',
+		type: 'keypress',
 		key: "F8",
 		shiftKey: false,
 		metaKey: false,

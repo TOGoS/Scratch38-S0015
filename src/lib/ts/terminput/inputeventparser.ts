@@ -2,22 +2,7 @@
 
 import { toBytes } from '../_util/asynciterableutil.ts';
 import { Charish, toCharishes } from './escapeparser.ts';
-
-type SpecialCharName = "Escape"|"Enter"|"Backspace"|"Delete"|
-	"F1"|"F2"|"F3"|"F4"|"F5"|"F6"|"F7"|"F8"|"F9"|"F10"|"F11"|"F12"|
-	"Insert"|"Home"|"End"|"PagegUp"|"PageDown"|
-	"Up"|"Down"|"Right"|"Left"; // etc
-
-// Note: It may be useful to define KeyEvent in a way that is
-// vaguely compatible with https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent
-interface KeyEvent {
-	charish?: Charish, // The charish that encoded this event
-	type: "Key",
-	key: string|SpecialCharName, // e.g. "a", "A", "F1", "Right"; "Unidentified" if unknown (should be compatible with https://developer.mozilla.org/en-US/docs/Web/API/UI_Events/Keyboard_event_key_values)
-	metaKey: boolean,
-	shiftKey: boolean,
-	ctrlKey: boolean,
-}
+import KeyEvent from './KeyEvent.ts';
 
 function keyFromTildeCode(code:number) : string {
 	switch( code ) {
@@ -53,7 +38,7 @@ function charishToInputEvent(charish:Charish, metaDown:boolean=false) : KeyEvent
 		if( charish == 13 ) {
 			return {
 				charish,
-				type: "Key",
+				type: "keypress",
 				key       : "Enter",
 				shiftKey  : false,
 				ctrlKey   : false,
@@ -62,7 +47,7 @@ function charishToInputEvent(charish:Charish, metaDown:boolean=false) : KeyEvent
 		} if( charish >=  0 && charish < 32 ) {
 			return {
 				charish,
-				type: "Key",
+				type: "keypress",
 				key       : String.fromCharCode(charish+96),
 				shiftKey  : false,
 				ctrlKey   : true,
@@ -71,7 +56,7 @@ function charishToInputEvent(charish:Charish, metaDown:boolean=false) : KeyEvent
 		} else if( charish == 127 ) {
 			return {
 				charish,
-				type: "Key",
+				type: "keypress",
 				key       : "Backspace",
 				shiftKey  : false,
 				ctrlKey   : false,
@@ -81,7 +66,7 @@ function charishToInputEvent(charish:Charish, metaDown:boolean=false) : KeyEvent
 			// Everything else return as-is
 			return {
 				charish,
-				type: "Key",
+				type: "keypress",
 				key       : String.fromCharCode(charish),
 				shiftKey  : true,
 				ctrlKey   : false,
@@ -92,7 +77,7 @@ function charishToInputEvent(charish:Charish, metaDown:boolean=false) : KeyEvent
 		if( charish.code2 == "~" ) {
 			return {
 				charish,
-				type: "Key",
+				type: "keypress",
 				metaKey: metaDown,
 				shiftKey: false,
 				ctrlKey: false,
@@ -101,7 +86,7 @@ function charishToInputEvent(charish:Charish, metaDown:boolean=false) : KeyEvent
 		} else if( charish.params.length == 0 && charish.code2 ) {
 			return {
 				charish,
-				type: "Key",
+				type: "keypress",
 				metaKey: metaDown,
 				shiftKey: false,
 				ctrlKey: false,
@@ -110,7 +95,7 @@ function charishToInputEvent(charish:Charish, metaDown:boolean=false) : KeyEvent
 		} else {
 			return {
 				charish,
-				type: "Key",
+				type: "keypress",
 				metaKey: metaDown,
 				shiftKey: false,
 				ctrlKey: false,
