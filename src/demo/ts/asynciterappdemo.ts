@@ -74,7 +74,7 @@ if( import.meta.main ) {
 	const app : TUIApp<number> = async function*(inputEvents) {
 		yield {
 			type: "print",
-			text: "Hi there!  Type 'x' or 'q' to quit.\n"
+			text: "Hi there!  Type 'x' or 'q' to quit.\nType 't' to enter TUI mode yukyuk.\n",
 		};
 		for await( const inputEvent of inputEvents ) {
 			if( inputEvent.key == "x" && inputEvent.ctrlKey == false && inputEvent.metaKey == false ) {
