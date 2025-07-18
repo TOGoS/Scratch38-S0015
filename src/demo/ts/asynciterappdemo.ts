@@ -8,8 +8,8 @@ import KeyEvent from '../../lib/ts/terminput/KeyEvent.ts';
 import TextRaster2 from '../../lib/ts/termdraw/TextRaster2.ts';
 import TUIRenderStateManager from '../../lib/ts/termdraw/TUIRenderStateManager.ts';
 import { inputEvents } from '../../lib/ts/terminput/inputeventparser.ts';
-import { textRaster2ToDrawCommands } from '../../lib/ts/termdraw/textraster2utils.ts';
-import { toAnsi } from '../../lib/ts/termdraw/ansi.ts';
+import { blitToRaster, createUniformRaster, textRaster2ToDrawCommands } from '../../lib/ts/termdraw/textraster2utils.ts';
+import { RED_TEXT, RESET_FORMATTING, toAnsi } from '../../lib/ts/termdraw/ansi.ts';
 import { iterateAndReturn, mergeAsyncIterables } from '../../lib/ts/_util/asynciterableutil.ts';
 import { Signal } from 'https://deno.land/x/tui@2.1.11/mod.ts';
 
@@ -138,20 +138,20 @@ if( import.meta.main ) {
 			text: "Hi there!  Type 'x' or 'q' to quit.\nType 't' to enter TUI mode yukyuk.\n",
 		};
 		
+		let inTui = false;
 		let data : string[] = ["abc","123"];
+		let screenSize : Vec2D<number> = {x:10, y:10};
+		const redSquare = createUniformRaster({x:2, y:2}, "K", RED_TEXT);
 		function generateRaster() {
-			// TODO: Draw app state (`data` and screen size, for now) into raster
-			return {
-				chars: [["a","b","c"]],
-				styles: [["","",""]],
-				height: 1,
-				width: 3
-			};
+			let rast = createUniformRaster(screenSize, " ", RESET_FORMATTING);
+			rast = blitToRaster(rast, {x:screenSize.x - 3, y:screenSize.y-3}, redSquare, {x0:0, y0:0, x1:2, y1:2});
+			return rast;
 		}
 		
 		for await( const inputEvent of inputEvents ) {
 			if( inputEvent.type == "terminalresize" ) {
-				yield {
+				screenSize = {x: inputEvent.width, y: inputEvent.height };
+				if( !inTui ) yield {
 					type: "print",
 					text: `Ooh, a screen resize event: ${JSON.stringify(inputEvent)}\n`
 				}
@@ -160,25 +160,26 @@ if( import.meta.main ) {
 					rasterGenerator: generateRaster
 				};
 			} else if( inputEvent.key == "x" && inputEvent.ctrlKey == false && inputEvent.metaKey == false ) {
-				yield {
+				if( !inTui ) yield {
 					type: "print",
 					text: "Exiting with status 1!\n"
 				}
 				return 1;
 			} else if( inputEvent.key == "q" && inputEvent.ctrlKey == false && inputEvent.metaKey == false ) {
-				yield {
+				if( !inTui )yield {
 					type: "print",
 					text: "Exiting with status 0!\n"
 				}
 				return 0;
 			} else if( inputEvent.key == "t" ) {
 				yield { type: "enter-tui-mode" };
+				inTui = true;
 				yield {
 					type: 'set-screen-raster-generator',
 					rasterGenerator: generateRaster
 				};
 			} else {
-				yield {
+				if( !inTui )yield {
 					type: "print",
 					text: `Ooh, an input event: ${JSON.stringify(inputEvent)}\n`
 				}
