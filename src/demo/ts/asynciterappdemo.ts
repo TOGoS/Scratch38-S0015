@@ -11,6 +11,7 @@ import { inputEvents } from '../../lib/ts/terminput/inputeventparser.ts';
 import { textRaster2ToDrawCommands } from '../../lib/ts/termdraw/textraster2utils.ts';
 import { toAnsi } from '../../lib/ts/termdraw/ansi.ts';
 import { iterateAndReturn, mergeAsyncIterables } from '../../lib/ts/_util/asynciterableutil.ts';
+import { Signal } from 'https://deno.land/x/tui@2.1.11/mod.ts';
 
 interface ScreenResizeEvent {
 	type: "terminalresize",
@@ -53,21 +54,45 @@ async function* generateAsyncIterator<T>(generator:() => T, delayMs : number, ab
 	}
 }
 
-function screenResizeEvents(abortSignal:AbortSignal) : AsyncIterable<ScreenResizeEvent> {
-	// TODO: Don't send event when size hasn't changed
-	// TODO: Try to update whenever Deno.addSignalListener("SIGWINCH", () => ...));
-	// I think I need a generic way to create AsyncIterables that I can 'push' stuff into.
-	// I guess streams do that.
-	return generateAsyncIterator(() => {
-		const size = Deno.consoleSize();
-		return {
-			type: 'terminalresize',
-			width: size.columns,
-			height: size.rows,
-		}
-	}, 5000, abortSignal);
+interface WriterReader<T> {
+	input:WritableStream<T>;
+	output:ReadableStream<T>;
 }
 
+function writerReader<T>() : WriterReader<T> {
+	const stream = new TransformStream();
+	return {
+		input: stream.writable,
+		output: stream.readable,
+	};
+}
+
+async function gemerateScreenResizeEvents(abortSignal:AbortSignal, dest:(evt:ScreenResizeEvent)=>unknown) : Promise<void> {
+	let prevSize :{ columns: number, rows: number }|undefined = undefined;
+	function poke() {
+		const size = Deno.consoleSize();
+		if( size == prevSize ) return;
+		if( prevSize == undefined || size.columns != prevSize.columns || size.rows != prevSize.rows ) {
+			prevSize = size;
+			dest({
+				type: "terminalresize",
+				width: size.columns,
+				height: size.rows,
+			});
+		}
+	}
+	
+	try {
+		Deno.addSignalListener("SIGWINCH", () => poke);
+	} catch( e ) {
+		console.error("Failed to addSignalListener('SIGWINCH'); oh well.");
+	}
+	
+	while( !abortSignal.aborted ) {
+		await poke();
+		await sleepMs(5000, abortSignal);
+	}
+}
 
 async function runTuiApp<R>(stdin:AsyncIterable<Uint8Array>, app:TUIApp<R>, stdout:WritableStreamDefaultWriter) : Promise<R> {
 	const textEncoder = new TextEncoder();
@@ -82,8 +107,14 @@ async function runTuiApp<R>(stdin:AsyncIterable<Uint8Array>, app:TUIApp<R>, stdo
 		}
 		return Promise.resolve();
 	});
+	
 	const abortController = new AbortController();
-	const allInputEvents : AsyncIterable<AppInputEvent> = mergeAsyncIterables<AppInputEvent>([inputEvents(stdin), screenResizeEvents(abortController.signal)]);
+	
+	const screenResizeStream : WriterReader<ScreenResizeEvent> = writerReader();
+	const screenResizeWriter = screenResizeStream.input.getWriter();
+	gemerateScreenResizeEvents(abortController.signal, evt => screenResizeWriter.write(evt)).then(_void => screenResizeWriter.close());
+	
+	const allInputEvents : AsyncIterable<AppInputEvent> = mergeAsyncIterables<AppInputEvent>([inputEvents(stdin), screenResizeStream.output]);
 	const outputEvents = app(allInputEvents);
 	const retVal = await iterateAndReturn(outputEvents, outputEvent => {
 		switch( outputEvent.type ) {
