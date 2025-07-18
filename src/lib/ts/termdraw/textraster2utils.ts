@@ -114,7 +114,7 @@ function blitCanvasNoBoundsCheck(canvas:TextRaster2, offsetOntoCanvas:Vec2D<numb
 	const destY1 = destY0 + stampRegion.y1 - stampRegion.y0;
 	for( let row=0; row<canvas.height; ++row ) {
 		if( row < destY0 || row >= destY1 ) {
-			resultChars[ row] = canvas.chars[row];
+			resultChars[ row] = canvas.chars[ row];
 			resultStyles[row] = canvas.styles[row];
 		} else {
 			resultChars[ row] = blitRowNoBoundsCheck(canvas.chars[ row], offsetOntoCanvas.x, stampRaster.chars[ stampRegion.y0 + row - offsetOntoCanvas.y], stampRegion.x0, stampRegion.x1);

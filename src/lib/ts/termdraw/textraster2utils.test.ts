@@ -159,7 +159,7 @@ Deno.test("blit 1x1 square to 2x1 canvas at 0,1", () => {
 });
 
 
-Deno.test("blit 2x2 square to 4x4 canvas", () => {
+Deno.test("blit 2x2 square to 4x4 canvas at 2,2", () => {
 	const c0 = ".";
 	const c1 = ";";
 	const s0 = RESET_FORMATTING;
@@ -187,4 +187,78 @@ Deno.test("blit 2x2 square to 4x4 canvas", () => {
 	};
 	
 	assertEquals(result, expectedResult);
+});
+
+Deno.test("blit 2x2 square to 4x4 canvas at -1,-1", () => {
+	const c0 = ".";
+	const c1 = ";";
+	const s0 = RESET_FORMATTING;
+	const s1 = RED_TEXT;
+	
+	const canvas = createUniformRaster({x: 4, y: 4}, c0, s0);
+	const stamp  = createUniformRaster({x: 2, y: 2}, c1, s1);
+	
+	const result = blitToRaster(canvas, {x:-1, y:-1}, stamp, {x0:0, y0:0, x1:2, y1:2});
+	
+	const expectedResult : TextRaster2 = {
+		width: 4, height: 4,
+		chars: [
+			[c1,c0,c0,c0],
+			[c0,c0,c0,c0],
+			[c0,c0,c0,c0],
+			[c0,c0,c0,c0],
+		],
+		styles: [
+			[s1,s0,s0,s0],
+			[s0,s0,s0,s0],
+			[s0,s0,s0,s0],
+			[s0,s0,s0,s0],
+		],
+	};
+	
+	assertEquals(result, expectedResult);
+});
+
+Deno.test("blit 2x2 square to 4x4 canvas at 3,3", () => {
+	const c0 = ".";
+	const c1 = ";";
+	const s0 = RESET_FORMATTING;
+	const s1 = RED_TEXT;
+	
+	const canvas = createUniformRaster({x: 4, y: 4}, c0, s0);
+	const stamp  = createUniformRaster({x: 2, y: 2}, c1, s1);
+	
+	const result = blitToRaster(canvas, {x:3, y:3}, stamp, {x0:0, y0:0, x1:2, y1:2});
+	
+	const expectedResult : TextRaster2 = {
+		width: 4, height: 4,
+		chars: [
+			[c0,c0,c0,c0],
+			[c0,c0,c0,c0],
+			[c0,c0,c0,c0],
+			[c0,c0,c0,c1],
+		],
+		styles: [
+			[s0,s0,s0,s0],
+			[s0,s0,s0,s0],
+			[s0,s0,s0,s0],
+			[s0,s0,s0,s1],
+		],
+	};
+	
+	assertEquals(result, expectedResult);
+});
+
+Deno.test("blit 2x2 square to 4x4 canvas with no changes", () => {
+	const c0 = ".";
+	const c1 = c0;
+	const s0 = RESET_FORMATTING;
+	const s1 = s0;
+	
+	const canvas = createUniformRaster({x: 4, y: 4}, c0, s0);
+	const stamp  = createUniformRaster({x: 2, y: 2}, c1, s1);
+	
+	const result = blitToRaster(canvas, {x:2, y:2}, stamp, {x0:0, y0:0, x1:2, y1:2});
+	
+	assertStrictEquals(result, canvas);
 });
