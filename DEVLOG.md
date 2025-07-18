@@ -245,3 +245,30 @@ to produce a new raster and list of updated regions
 big region, or one region per line).
 
 TODO: An actual demo, where widgets are drawn.
+
+## 2025-07-17
+
+### 22:00 - Trying to make some dang progress
+
+Problem: I'm not sure how to structure the code for a dang TUI app.
+
+Created [asynciterappdemo](./src/demo/ts/asynciterappdemo.ts),
+which gives a rough outline for one approach: the app is a function
+that takes an async iterable of input events and returns an async iterable
+of output events.  Which worked well enough for this simple demo.
+
+The async iterable of input events maybe makes sense,
+though an app could also get input from other places.
+
+But I wonder if the model is awkward for output.
+What if an app does a lot of output somewhere other than the terminal?
+Output to the terminal is all yields, while output elsewhere
+looks completely different.
+
+Maybe instead of this iterator stuff, an app should just be
+an async procedure that operates on a 'context' which consists
+of whatever I/O functions are convenient for the app.
+Terminal input and output would not have special status.
+
+These conceptual models always seem to become more complicated
+when I go and try to implement it in TypeScript.
