@@ -10,6 +10,7 @@ import TUIRenderStateManager from '../../lib/ts/termdraw/TUIRenderStateManager.t
 import { inputEvents } from '../../lib/ts/terminput/inputeventparser.ts';
 import { textRaster2ToDrawCommands } from '../../lib/ts/termdraw/textraster2utils.ts';
 import { toAnsi } from '../../lib/ts/termdraw/ansi.ts';
+import { iterateAndReturn, mergeAsyncIterables } from '../../lib/ts/_util/asynciterableutil.ts';
 
 interface ScreenResizeEvent {
 	type: "terminalresize",
@@ -34,48 +35,6 @@ type AppOutputEvent = {
 };
 
 type TUIApp<R> = (events:AsyncIterable<AppInputEvent>) => AsyncIterable<AppOutputEvent,R>;
-
-async function* mergeAsyncIterables<T>(iterables : Iterable<AsyncIterable<T>>) : AsyncIterable<T> {
-	// Mostly copied from https://stackoverflow.com/questions/50585456/how-can-i-interleave-merge-async-iterables
-	const asyncIterators = Array.from(iterables, o => o[Symbol.asyncIterator]());
-	const results = [];
-	let count = asyncIterators.length;
-	const never = new Promise<never>(() => {});
-	function getIndexedNext(asyncIterator : AsyncIterator<T>, index : number) {
-		return asyncIterator.next().then(result => ({ index, result }));
-	}
-	const indexedNextPromises = asyncIterators.map(getIndexedNext);
-	try {
-		while (count) {
-			const {index, result} = await Promise.race(indexedNextPromises);
-			if (result.done) {
-				indexedNextPromises[index] = never;
-				results[index] = result.value;
-				--count;
-			} else {
-				indexedNextPromises[index] = getIndexedNext(asyncIterators[index], index);
-				yield result.value;
-			}
-		}
-	} finally {
-		for (const [index, iterator] of asyncIterators.entries())
-			if (indexedNextPromises[index] != never && iterator.return != null)
-				iterator.return();
-		// no await here - see https://github.com/tc39/proposal-async-iteration/issues/126
-	}
-	return results;
-}
-
-async function iterateAndReturn<I,R>(iterable:AsyncIterable<I,R>, itemCallback: (item:I) => unknown) : Promise<R> {
-	const iterator = iterable[Symbol.asyncIterator]();
-	let entry = await iterator.next();
-	while( !entry.done ) {
-		await itemCallback(entry.value);
-		entry = await iterator.next();
-	}
-	return entry.value;
-}
-
 
 function sleepMs(millis:number, abortSignal:AbortSignal) : Promise<void> {
 	return new Promise((resolve,reject) => {
