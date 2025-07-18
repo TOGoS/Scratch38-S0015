@@ -1,3 +1,4 @@
+/** An iterator that lets you put things back so they'll be returned by next() again */
 // deno-lint-ignore no-explicit-any
 export default class Peekerator<T, TReturn=any, TNext=any> implements AsyncIterator<T, TReturn, TNext> {
 	#queued : T[] = [];
