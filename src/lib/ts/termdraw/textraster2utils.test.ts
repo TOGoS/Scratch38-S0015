@@ -8,7 +8,7 @@ import Vec2D from './Vec2D.ts';
 
 interface AbstractRastMan<T> {
 	data : T;
-	updatedRegions : AABB2D[];
+	updatedRegions : AABB2D<number>[];
 }
 
 //// Tests

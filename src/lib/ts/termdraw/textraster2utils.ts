@@ -3,7 +3,7 @@ import DrawCommand from './DrawCommand.ts';
 import AABB2D from './AABB2D.ts';
 import Vec2D from './Vec2D.ts';
 
-function actualChangedRegions(rasterA:TextRaster2, rasterB:TextRaster2, regions:Iterable<AABB2D>) : Iterable<AABB2D> {
+function actualChangedRegions(rasterA:TextRaster2, rasterB:TextRaster2, regions:Iterable<AABB2D<number>>) : Iterable<AABB2D<number>> {
 	// TODO: Check raster data, only emit sub-regions that actually differ
 	return regions;
 }
@@ -14,7 +14,7 @@ function clamp(n:number, min:number, max:number) {
 	return n;
 }
 
-export function* textRaster2ToDrawCommands(raster:TextRaster2, regions:Iterable<AABB2D>, offset:Vec2D<number>) : Iterable<DrawCommand> {
+export function* textRaster2ToDrawCommands(raster:TextRaster2, regions:Iterable<AABB2D<number>>, offset:Vec2D<number>) : Iterable<DrawCommand> {
 	for( const reg of regions ) {
 		const y0 = clamp(reg.y0, 0, raster.height);
 		const x0 = clamp(reg.x0, 0, raster.width);
