@@ -11,7 +11,16 @@ import { inputEvents } from '../../lib/ts/terminput/inputeventparser.ts';
 import { textRaster2ToDrawCommands } from '../../lib/ts/termdraw/textraster2utils.ts';
 import { toAnsi } from '../../lib/ts/termdraw/ansi.ts';
 
-type AppInputEvent = KeyEvent // TODO: Or a line of text (if not yet in TUI mode), or a screen size change
+interface ScreenResizeEvent {
+	type: "terminalresize",
+	width: number,
+	height: number,
+};
+
+type AppInputEvent =
+	| KeyEvent
+	| ScreenResizeEvent
+ // TODO: Or a line of text (if not yet in TUI mode), or a screen size change
 type AppOutputEvent = {
 	type: "print",
 	text: string
@@ -20,11 +29,42 @@ type AppOutputEvent = {
 } | {
 	type: "exit-tui-mode",
 } | {
-	type: "set-screen-raster",
-	raster: TextRaster2
+	type: "set-screen-raster-generator",
+	rasterGenerator: () => TextRaster2
 };
 
 type TUIApp<R> = (events:AsyncIterable<AppInputEvent>) => AsyncIterable<AppOutputEvent,R>;
+
+async function* mergeAsyncIterables<T>(iterables : Iterable<AsyncIterable<T>>) : AsyncIterable<T> {
+	// Mostly copied from https://stackoverflow.com/questions/50585456/how-can-i-interleave-merge-async-iterables
+	const asyncIterators = Array.from(iterables, o => o[Symbol.asyncIterator]());
+	const results = [];
+	let count = asyncIterators.length;
+	const never = new Promise<never>(() => {});
+	function getIndexedNext(asyncIterator : AsyncIterator<T>, index : number) {
+		return asyncIterator.next().then(result => ({ index, result }));
+	}
+	const indexedNextPromises = asyncIterators.map(getIndexedNext);
+	try {
+		while (count) {
+			const {index, result} = await Promise.race(indexedNextPromises);
+			if (result.done) {
+				indexedNextPromises[index] = never;
+				results[index] = result.value;
+				--count;
+			} else {
+				indexedNextPromises[index] = getIndexedNext(asyncIterators[index], index);
+				yield result.value;
+			}
+		}
+	} finally {
+		for (const [index, iterator] of asyncIterators.entries())
+			if (indexedNextPromises[index] != never && iterator.return != null)
+				iterator.return();
+		// no await here - see https://github.com/tc39/proposal-async-iteration/issues/126
+	}
+	return results;
+}
 
 async function iterateAndReturn<I,R>(iterable:AsyncIterable<I,R>, itemCallback: (item:I) => unknown) : Promise<R> {
 	const iterator = iterable[Symbol.asyncIterator]();
@@ -36,18 +76,56 @@ async function iterateAndReturn<I,R>(iterable:AsyncIterable<I,R>, itemCallback: 
 	return entry.value;
 }
 
+
+function sleepMs(millis:number, abortSignal:AbortSignal) : Promise<void> {
+	return new Promise((resolve,reject) => {
+		const timeout = setTimeout(resolve, millis);
+		abortSignal.addEventListener("abort", () => {
+			clearTimeout(timeout);
+			reject(abortSignal.reason);
+		});
+	});
+}
+
+async function* generateAsyncIterator<T>(generator:() => T, delayMs : number, abortSignal:AbortSignal) : AsyncIterable<T> {
+	while( !abortSignal.aborted ) {
+		yield generator();
+		await sleepMs(delayMs, abortSignal);
+	}
+}
+
+function screenResizeEvents(abortSignal:AbortSignal) : AsyncIterable<ScreenResizeEvent> {
+	// TODO: Don't send event when size hasn't changed
+	// TODO: Try to update whenever Deno.addSignalListener("SIGWINCH", () => ...));
+	// I think I need a generic way to create AsyncIterables that I can 'push' stuff into.
+	// I guess streams do that.
+	return generateAsyncIterator(() => {
+		const size = Deno.consoleSize();
+		return {
+			type: 'terminalresize',
+			width: size.columns,
+			height: size.rows,
+		}
+	}, 5000, abortSignal);
+}
+
+
 async function runTuiApp<R>(stdin:AsyncIterable<Uint8Array>, app:TUIApp<R>, stdout:WritableStreamDefaultWriter) : Promise<R> {
 	const textEncoder = new TextEncoder();
-	let raster : TextRaster2|undefined;
+	let rasterGenerator : (() => TextRaster2) = () => ({width:0, height:0, chars:[], styles:[]});
 	const tuiRenderStateMan = new TUIRenderStateManager(stdout, writer => {
-		// TUIRenderStateManager 
 		writer.write(textEncoder.encode(toAnsi({classRef:'x:ClearScreen'})));
-		if( raster != undefined ) for( const dc of textRaster2ToDrawCommands(raster, [{x0:0, y0:0, x1:raster.width, y1:raster.height}], {x:0, y:0}) ) {
-			writer.write(textEncoder.encode(toAnsi(dc)));
+		if( rasterGenerator ) {
+			const raster = rasterGenerator();
+			for( const dc of textRaster2ToDrawCommands(raster, [{x0:0, y0:0, x1:raster.width, y1:raster.height}], {x:0, y:0}) ) {
+				writer.write(textEncoder.encode(toAnsi(dc)));
+			}
 		}
 		return Promise.resolve();
 	});
-	const outputEvents = app(inputEvents(stdin));
+	const abortController = new AbortController();
+	const allInputEvents : AsyncIterable<AppInputEvent> = mergeAsyncIterables<AppInputEvent>([inputEvents(stdin), screenResizeEvents(abortController.signal)]);
+	const outputEvents = app(allInputEvents);
 	const retVal = await iterateAndReturn(outputEvents, outputEvent => {
 		switch( outputEvent.type ) {
 		case 'print':
@@ -58,8 +136,8 @@ async function runTuiApp<R>(stdin:AsyncIterable<Uint8Array>, app:TUIApp<R>, stdo
 		case 'exit-tui-mode':
 			Deno.stdin.setRaw(false);
 			return tuiRenderStateMan.exitTui();
-		case 'set-screen-raster':
-			raster = outputEvent.raster;
+		case 'set-screen-raster-generator':
+			rasterGenerator = outputEvent.rasterGenerator;
 			tuiRenderStateMan.requestRedraw();
 		}
 	});
@@ -71,13 +149,34 @@ async function runTuiApp<R>(stdin:AsyncIterable<Uint8Array>, app:TUIApp<R>, stdo
 }
 
 if( import.meta.main ) {
-	const app : TUIApp<number> = async function*(inputEvents) {
+	const app : TUIApp<number> = async function*(inputEvents : AsyncIterable<AppInputEvent>) {
 		yield {
 			type: "print",
 			text: "Hi there!  Type 'x' or 'q' to quit.\nType 't' to enter TUI mode yukyuk.\n",
 		};
+		
+		let data : string[] = ["abc","123"];
+		function generateRaster() {
+			// TODO: Draw app state (`data` and screen size, for now) into raster
+			return {
+				chars: [["a","b","c"]],
+				styles: [["","",""]],
+				height: 1,
+				width: 3
+			};
+		}
+		
 		for await( const inputEvent of inputEvents ) {
-			if( inputEvent.key == "x" && inputEvent.ctrlKey == false && inputEvent.metaKey == false ) {
+			if( inputEvent.type == "terminalresize" ) {
+				yield {
+					type: "print",
+					text: `Ooh, a screen resize event: ${JSON.stringify(inputEvent)}\n`
+				}
+				yield {
+					type: 'set-screen-raster-generator',
+					rasterGenerator: generateRaster
+				};
+			} else if( inputEvent.key == "x" && inputEvent.ctrlKey == false && inputEvent.metaKey == false ) {
 				yield {
 					type: "print",
 					text: "Exiting with status 1!\n"
@@ -92,13 +191,8 @@ if( import.meta.main ) {
 			} else if( inputEvent.key == "t" ) {
 				yield { type: "enter-tui-mode" };
 				yield {
-					type: 'set-screen-raster',
-					raster: {
-						chars: [["a","b","c"]],
-						styles: [["","",""]],
-						height: 1,
-						width: 3
-					}
+					type: 'set-screen-raster-generator',
+					rasterGenerator: generateRaster
 				};
 			} else {
 				yield {
