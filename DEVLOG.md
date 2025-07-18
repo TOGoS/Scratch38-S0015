@@ -272,3 +272,17 @@ Terminal input and output would not have special status.
 
 These conceptual models always seem to become more complicated
 when I go and try to implement it in TypeScript.
+
+## 2025-07-18
+
+### App as iterator over input events
+
+This model becomes more awkward as the app needs to react to more different things.
+
+I had to go through some contortions to represent screen resizes as events
+in a stream.  I'm imagining that setting timers would be even more weird.
+
+The model I used in the original `tuidemo1.ts`, which uses 'reactive state variables',
+seems much more straightforward.  I might want to simplify from that somewhat,
+maybe remove the `.then` method which makes the things look like promises,
+which could confuse promisey code that tries to deal with them.
