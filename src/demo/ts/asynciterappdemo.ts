@@ -98,12 +98,12 @@ function gemerateScreenResizeEvents(abortSignal:AbortSignal, dest:(evt:ScreenRes
 
 async function runTuiApp<R>(stdin:AsyncIterable<Uint8Array>, app:TUIApp<R>, stdout:WritableStreamDefaultWriter) : Promise<R> {
 	const textEncoder = new TextEncoder();
-	let rasterGenerator : (() => TextRaster2) = () => ({width:0, height:0, chars:[], styles:[]});
+	let rasterGenerator : (() => TextRaster2) = () => ({size:{x:0,y:0}, chars:[], styles:[]});
 	const tuiRenderStateMan = new TUIRenderStateManager(stdout, writer => {
 		writer.write(textEncoder.encode(toAnsi({classRef:'x:ClearScreen'})));
 		if( rasterGenerator ) {
 			const raster = rasterGenerator();
-			for( const dc of textRaster2ToDrawCommands(raster, [{x0:0, y0:0, x1:raster.width, y1:raster.height}], {x:0, y:0}) ) {
+			for( const dc of textRaster2ToDrawCommands(raster, [{x0:0, y0:0, x1:raster.size.x, y1:raster.size.y}], {x:0, y:0}) ) {
 				writer.write(textEncoder.encode(toAnsi(dc)));
 			}
 		}

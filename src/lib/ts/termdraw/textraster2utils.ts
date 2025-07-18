@@ -16,10 +16,10 @@ function clamp(n:number, min:number, max:number) {
 
 export function* textRaster2ToDrawCommands(raster:TextRaster2, regions:Iterable<AABB2D<number>>, offset:Vec2D<number>) : Iterable<DrawCommand> {
 	for( const reg of regions ) {
-		const y0 = clamp(reg.y0, 0, raster.height);
-		const x0 = clamp(reg.x0, 0, raster.width);
-		const y1 = clamp(reg.y1, 0, raster.height);
-		const x1 = clamp(reg.x1, 0, raster.width);
+		const y0 = clamp(reg.y0, 0, raster.size.y);
+		const x0 = clamp(reg.x0, 0, raster.size.x);
+		const y1 = clamp(reg.y1, 0, raster.size.y);
+		const x1 = clamp(reg.x1, 0, raster.size.x);
 		let cursorY : number|undefined = undefined;
 		let cursorX : number|undefined = undefined;
 		let cursorStyle : string|undefined = undefined;
@@ -77,8 +77,7 @@ export function createUniformRaster(size:Vec2D<number>, char:string, style:strin
 	const charLine  = createUniformList(size.x, char);
 	const styleLine = createUniformList(size.x, style);
 	return {
-		width : size.x,
-		height: size.y,
+		size,
 		chars : createUniformList(size.y,  charLine),
 		styles: createUniformList(size.y, styleLine),
 	}
@@ -112,7 +111,7 @@ function blitCanvasNoBoundsCheck(canvas:TextRaster2, offsetOntoCanvas:Vec2D<numb
 	let anythingChanged : boolean = false;
 	const destY0 = offsetOntoCanvas.y;
 	const destY1 = destY0 + stampRegion.y1 - stampRegion.y0;
-	for( let row=0; row<canvas.height; ++row ) {
+	for( let row=0; row<canvas.size.y; ++row ) {
 		if( row < destY0 || row >= destY1 ) {
 			resultChars[ row] = canvas.chars[ row];
 			resultStyles[row] = canvas.styles[row];
@@ -123,8 +122,7 @@ function blitCanvasNoBoundsCheck(canvas:TextRaster2, offsetOntoCanvas:Vec2D<numb
 		}
 	}
 	return anythingChanged ? {
-		width: canvas.width,
-		height: canvas.height,
+		size: canvas.size,
 		chars: resultChars,
 		styles: resultStyles,
 	} : canvas;
@@ -132,18 +130,18 @@ function blitCanvasNoBoundsCheck(canvas:TextRaster2, offsetOntoCanvas:Vec2D<numb
 
 export function blitToRaster(canvas:TextRaster2, offsetOntoCanvas:Vec2D<number>, stampRaster:TextRaster2, stampRegion:AABB2D<number>) : TextRaster2 {
 	// Crop source region to source, adjusting offset as needed
-	const stampCroppedStampRegion = intersection(stampRegion, {x0:0, y0:0, x1:stampRaster.width, y1:stampRaster.height});
+	const stampCroppedStampRegion = intersection(stampRegion, {x0:0, y0:0, x1:stampRaster.size.x, y1:stampRaster.size.y});
 	offsetOntoCanvas = {
 		x: offsetOntoCanvas.x + stampCroppedStampRegion.x0 - stampRegion.x0,
 		y: offsetOntoCanvas.y + stampCroppedStampRegion.y0 - stampRegion.y0,
 	}
 	// Shortcut if entirely outside canvas
-	if( offsetOntoCanvas.x >= canvas.width ) return canvas;
-	if( offsetOntoCanvas.y >= canvas.height ) return canvas;
+	if( offsetOntoCanvas.x >= canvas.size.x ) return canvas;
+	if( offsetOntoCanvas.y >= canvas.size.y ) return canvas;
 	if( offsetOntoCanvas.x + stampCroppedStampRegion.x1 - stampCroppedStampRegion.x0 <= 0 ) return canvas;
 	if( offsetOntoCanvas.y + stampCroppedStampRegion.y1 - stampCroppedStampRegion.y0 <= 0 ) return canvas;
 	// Crop to canvas (implied to be nonzero at this point)
-	const canvasCroppedStampRegion = intersection(stampCroppedStampRegion, {x0:0, y0:0, x1:canvas.width, y1:canvas.height});
+	const canvasCroppedStampRegion = intersection(stampCroppedStampRegion, {x0:0, y0:0, x1:canvas.size.x, y1:canvas.size.y});
 	offsetOntoCanvas = {
 		x: offsetOntoCanvas.x + canvasCroppedStampRegion.x0 - stampCroppedStampRegion.x0,
 		y: offsetOntoCanvas.y + canvasCroppedStampRegion.y0 - stampCroppedStampRegion.y0,
