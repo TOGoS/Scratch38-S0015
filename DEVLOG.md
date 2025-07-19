@@ -286,3 +286,20 @@ The model I used in the original `tuidemo1.ts`, which uses 'reactive state varia
 seems much more straightforward.  I might want to simplify from that somewhat,
 maybe remove the `.then` method which makes the things look like promises,
 which could confuse promisey code that tries to deal with them.
+
+### A more traditional approach
+
+`tuidemo3.ts` works in a more traditional object-oriented/procedural way.
+
+An app instance is constructed and spawned by giving it a 'context', which is
+for now just a handler of `Renderable`s.  But later a context might include
+accessors for other bits of the environment.
+
+A `runTuiApp` function takes an app constructor, creates subsystems for
+handling input and output, switches things to 'TUI mode' (`input.setRaw(true)`,
+switch terminal to alternate buffer), spawns the app instance, `wait()`s for it to exit,
+and then switches back out of TUI mode.
+
+I was able to write this in only a couple of hours, including some refactoring
+of and new functions for drawing to `TextRaster2`s.  I think it's a better way
+than that iterable stuff.
