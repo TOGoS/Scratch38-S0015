@@ -77,6 +77,7 @@ class EchoAppInstance extends AbstractAppInstance<any,number> {
 			toRaster: (screenSize) => {
 				let rast = createUniformRaster(screenSize, " ", RESET_FORMATTING);
 				rast = drawTextToRaster(rast, {x:1, y:1}, this.#text, RESET_FORMATTING);
+				rast = drawTextToRaster(rast, {x:1, y:2}, this.#text + " (again)", RESET_FORMATTING);
 				return rast;
 			}
 		});
