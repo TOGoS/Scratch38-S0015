@@ -23,6 +23,47 @@ function textRaster2Bounds(raster:TextRaster2) : AABB2D<number> {
 	};
 }
 
+/**
+ * Generate draw commands to output the given region
+ * of the given raster, top-to-bottom, without absolute cursor movement.
+ */
+export function* textRaster2ToLines(
+	raster : TextRaster2,
+	region : AABB2D<number> = textRaster2Bounds(raster),
+	afterLine : DrawCommand = { classRef: "x:EmitText", text: "\n" },
+	emptyChar : string = " ",
+) : Iterable<DrawCommand> {
+	const y0 = clamp(region.y0, 0, raster.size.y);
+	const x0 = clamp(region.x0, 0, raster.size.x);
+	const y1 = clamp(region.y1, 0, raster.size.y);
+	const x1 = clamp(region.x1, 0, raster.size.x);
+	let cursorStyle : string|undefined = undefined;
+	for( let y=y0; y<y1; ++y ) {
+		for( let x=x0; x<x1; ) {
+			const spanX0 = x;
+			const spanStyle = raster.styles[y][x];
+			for( x=x+1; x<x1 && raster.styles[y][x] == spanStyle; ++x ) {}
+			const spanX1 = x;
+			const chars:string[] = [];
+			for( x=spanX0; x<spanX1; ++x ) {
+				const rChar = raster.chars[y][x];
+				chars.push(rChar == "" ? emptyChar : rChar);
+			}
+			if( spanStyle != cursorStyle ) {
+				yield {
+					classRef: "x:EmitStyleChange",
+					sequence: cursorStyle = spanStyle
+				};
+			}
+			yield {
+				classRef: "x:EmitText",
+				text: chars.join(''),
+			};
+		}
+		yield afterLine;
+	}
+}
+
 export function* textRaster2ToDrawCommands(
 	raster:TextRaster2,
 	regions:Iterable<AABB2D<number>> = [textRaster2Bounds(raster)],

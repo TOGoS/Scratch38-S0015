@@ -5,7 +5,7 @@ import KeyEvent from '../../lib/ts/terminput/KeyEvent.ts';
 import TextRaster2 from '../../lib/ts/termdraw/TextRaster2.ts';
 import TUIRenderStateManager from '../../lib/ts/termdraw/TUIRenderStateManager.ts';
 import { inputEvents } from '../../lib/ts/terminput/inputeventparser.ts';
-import { blitToRaster, createUniformRaster, drawTextToRaster, textRaster2ToDrawCommands } from '../../lib/ts/termdraw/textraster2utils.ts';
+import { blitToRaster, createUniformRaster, drawTextToRaster, textRaster2ToDrawCommands, textRaster2ToLines } from '../../lib/ts/termdraw/textraster2utils.ts';
 import { RED_TEXT, RESET_FORMATTING, toAnsi } from '../../lib/ts/termdraw/ansi.ts';
 import { iterateAndReturn, mergeAsyncIterables } from '../../lib/ts/_util/asynciterableutil.ts';
 import { Signal } from 'https://deno.land/x/tui@2.1.11/mod.ts';
@@ -24,6 +24,21 @@ interface Waitable<R> {
 
 interface TUIAppInstance<I,R> extends Waitable<R> {
 	handleInput(input:I) : void;
+}
+
+interface ConsoleApp<R> extends Waitable<R> {}
+
+interface ConsoleAppContext {
+	// Hmm: Directly using Readable/WritableStreams might not be the most useful thing;
+	// will try and find out later.
+	stdin?   : ReadableStream<Uint8Array>;
+	//stdout : WritableStream<Uint8Array>;
+	//stderr : WritableStream<Uint8Array>;
+	viewSink : (r:Rasterable)=>void
+}
+
+interface TUIAppContext {
+	viewSink : (r:Rasterable)=>void;
 }
 
 interface Rasterable {
@@ -75,7 +90,7 @@ class EchoAppInstance extends AbstractAppInstance<any,number> {
 	protected run() {
 		this._outputHandler({
 			toRaster: (screenSize) => {
-				let rast = createUniformRaster(screenSize, " ", RESET_FORMATTING);
+				let rast = createUniformRaster({x:screenSize.x, y:3}, " ", RESET_FORMATTING);
 				rast = drawTextToRaster(rast, {x:1, y:1}, this.#text, RESET_FORMATTING);
 				rast = drawTextToRaster(rast, {x:1, y:2}, this.#text + " (again)", RESET_FORMATTING);
 				return rast;
@@ -85,7 +100,47 @@ class EchoAppInstance extends AbstractAppInstance<any,number> {
 	}
 }
 
-async function runTuiApp<Result>(spawner:Spawner<(r:Rasterable)=>void, TUIAppInstance<KeyEvent,Result>>, output:WritableStreamDefaultWriter) : Promise<Result> {
+/**
+ * Run an 'app' that generates rasters to print to the terminal,
+ * but does not need to take control of the full screen
+ * or take raw input.
+ * 
+ * Probably these could/should be refactored
+ * to be a single function with flags for
+ * 'raw input' and 'screen' vs 'terminal'
+ */
+async function runTerminalApp<Result>(
+	spawner:Spawner<ConsoleAppContext, ConsoleApp<Result>>,
+	ctx:{stdin?:{readable:ReadableStream}, stdout:WritableStreamDefaultWriter}
+) : Promise<Result> {
+	const textEncoder = new TextEncoder();
+	
+	function getScreenSize() : Vec2D<number> {
+		const cs = Deno.consoleSize();
+		return { x: cs.columns, y: cs.rows };
+	}
+	
+	const stdout = ctx.stdout;
+	
+	const viewSink : (r:Rasterable)=>void = async (scene) => {
+		const raster = scene.toRaster(getScreenSize());
+		for( const command of textRaster2ToLines(raster) ) {
+			await stdout.write(textEncoder.encode(toAnsi(command)));
+		}
+	};
+	
+	const app = spawner.spawn({
+		stdin: ctx.stdin?.readable,
+		viewSink
+	});
+	
+	return await app.wait();
+}
+
+async function runTuiApp<Result>(
+	spawner:Spawner<TUIAppContext, TUIAppInstance<KeyEvent,Result>>,
+	ctx:{stdin:typeof Deno.stdin, stdout:WritableStreamDefaultWriter}
+) : Promise<Result> {
 	const textEncoder = new TextEncoder();
 	
 	function getScreenSize() : Vec2D<number> {
@@ -98,7 +153,7 @@ async function runTuiApp<Result>(spawner:Spawner<(r:Rasterable)=>void, TUIAppIns
 			return createUniformRaster(size, " ", RESET_FORMATTING);
 		}
 	}
-	const renderStateMan = new TUIRenderStateManager(output, async (out) => {
+	const renderStateMan = new TUIRenderStateManager(ctx.stdout, async (out) => {
 		const raster = currentScene.toRaster(getScreenSize());
 		for( const command of textRaster2ToDrawCommands(raster) ) {
 			await out.write(textEncoder.encode(toAnsi(command)));
@@ -107,11 +162,13 @@ async function runTuiApp<Result>(spawner:Spawner<(r:Rasterable)=>void, TUIAppIns
 	
 	try {
 		await renderStateMan.enterTui();
-		Deno.stdin.setRaw(true);
+		ctx.stdin.setRaw(true);
 		
-		const appInstance = spawner.spawn((scene) => {
-			currentScene = scene;
-			renderStateMan.requestRedraw();
+		const appInstance = spawner.spawn({
+			viewSink: (scene) => {
+				currentScene = scene;
+				renderStateMan.requestRedraw();
+			}
 		});
 		
 		// App is started!
@@ -121,16 +178,16 @@ async function runTuiApp<Result>(spawner:Spawner<(r:Rasterable)=>void, TUIAppIns
 		const exitCode = await appInstance.wait();
 		return exitCode;
 	} finally {
-		Deno.stdin.setRaw(false);
+		ctx.stdin.setRaw(false);
 		await renderStateMan.exitTui();
 	}
 }
 
 if( import.meta.main ) {
 	const exitCode = await runTuiApp({
-		spawn(rasterSink) {
-			return new EchoAppInstance("Hello, world!", rasterSink);
+		spawn({viewSink}) {
+			return new EchoAppInstance("Hello, world!", viewSink);
 		}
-	}, Deno.stdout.writable.getWriter());
+	}, {stdin:Deno.stdin, stdout:Deno.stdout.writable.getWriter()});
 	Deno.exit(exitCode);
 }

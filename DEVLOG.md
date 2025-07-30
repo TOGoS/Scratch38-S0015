@@ -303,3 +303,20 @@ and then switches back out of TUI mode.
 I was able to write this in only a couple of hours, including some refactoring
 of and new functions for drawing to `TextRaster2`s.  I think it's a better way
 than that iterable stuff.
+
+## 2025-07-30
+
+### Line mode
+
+Refactored `tuidemo3.ts` slightly so that apps can be launched
+in what I am currently thinking of calling 'TUI mode' or 'line mode'.
+
+In TUI mode, the app get raw input and the app takes over the screen.
+
+In line mode, the app does not get raw input, and prints its output
+to the terminal line-by line.
+
+Raw input and fullscreen/line-based output are sort of orthogonal,
+so I want to refactor further so this is all handled by one function
+with flags (maybe the `Spawner` will have properties indicating
+whether it expects raw input, etc).
