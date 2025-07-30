@@ -25,7 +25,7 @@ Deno.test("textRaster2ToDrawCommands 'foo'", () => {
 	const actualCommands = textRaster2ToDrawCommands(theRaster, [{x0:0,y0:0,x1:3,y1:1}], {x:0,y:0});
 	assertEquals([...actualCommands], [
 		{classRef:"x:Move", x:0, y:0},
-		{classRef:"x:EmitLiteral", sequence:style},
+		{classRef:"x:EmitStyleChange", sequence:style},
 		{classRef:"x:EmitText", text:"foo"},
 	])
 });
@@ -40,18 +40,18 @@ function textThreeByThreeRaster2ToDrawCommands(offset:Vec2D<number>) {
 	const actualCommands = textRaster2ToDrawCommands(THREEBYTHREE, [{x0:0,y0:0,x1:3,y1:3}], offset);
 	assertEquals([...actualCommands], [
 		{classRef:"x:Move", x:offset.x+0, y:offset.y+0},
-		{classRef:"x:EmitLiteral", sequence:RESET_FORMATTING},
+		{classRef:"x:EmitStyleChange", sequence:RESET_FORMATTING},
 		{classRef:"x:EmitText", text:"foo"},
 		
 		{classRef:"x:Move", x:offset.x+0, y:offset.y+1},
-		{classRef:"x:EmitLiteral", sequence:RED_TEXT},
+		{classRef:"x:EmitStyleChange", sequence:RED_TEXT},
 		{classRef:"x:EmitText", text:"b"},
 		{classRef:"x:Move", x:offset.x+2, y:offset.y+1},
-		// {classRef:"x:EmitLiteral", sequence:RED_TEXT},
+		// {classRef:"x:EmitStyleChange", sequence:RED_TEXT},
 		{classRef:"x:EmitText", text:"r"},
 		
 		{classRef:"x:Move", x:offset.x+0, y:offset.y+2},
-		{classRef:"x:EmitLiteral", sequence:RESET_FORMATTING},
+		{classRef:"x:EmitStyleChange", sequence:RESET_FORMATTING},
 		{classRef:"x:EmitText", text:`{${FAMILY_EMOJI}}`},
 	]);
 }

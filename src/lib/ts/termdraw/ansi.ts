@@ -30,7 +30,7 @@ export function toAnsi(dc:DrawCommand) : string {
 		case "x:EmitText": {
 			return ansiEscape(dc.text);
 		}
-		case "x:EmitLiteral": {
+		case "x:EmitLiteral": case "x:EmitStyleChange": {
 			return dc.sequence;
 		}
 	}

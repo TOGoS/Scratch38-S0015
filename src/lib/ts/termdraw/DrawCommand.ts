@@ -9,6 +9,9 @@ export type DrawCommand = {
 	classRef: "x:EmitText",
 	text: string // If this includes escape codes, the handler had better escape them somehow!
 } | PSTextSpan | {
+	classRef: "x:EmitStyleChange",
+	sequence: string
+} | {
 	classRef: "x:EmitLiteral",
 	sequence: string // Handler should emit this directly without escaping
 };

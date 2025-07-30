@@ -60,7 +60,7 @@ export function* textRaster2ToDrawCommands(
 					}
 					if( spanStyle != cursorStyle ) {
 						yield {
-							classRef: "x:EmitLiteral",
+							classRef: "x:EmitStyleChange",
 							sequence: cursorStyle = spanStyle
 						};
 					}
