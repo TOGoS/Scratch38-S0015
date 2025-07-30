@@ -320,3 +320,18 @@ Raw input and fullscreen/line-based output are sort of orthogonal,
 so I want to refactor further so this is all handled by one function
 with flags (maybe the `Spawner` will have properties indicating
 whether it expects raw input, etc).
+
+### Decouple usesRawInput from outputMode
+
+Now you can run `tuidemo3.ts` in `screen` or `lines` mode.
+
+```
+deno run src\demo\ts\tuidemo3.ts --output-mode=screen
+```
+
+It would probably be good to tell the spawner somehow
+which output mode is being used in case the app wants
+to e.g. emit a different raster size when in screen mode.
+
+Currently `EchoAppInstance` hardcodes the output height to 3 lines,
+but that's not real 'scalable'.
