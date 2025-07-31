@@ -60,6 +60,10 @@ export function* textRaster2ToLines(
 				text: chars.join(''),
 			};
 		}
+		yield {
+			classRef: "x:EmitStyleChange",
+			sequence: cursorStyle = RESET_FORMATTING,
+		};
 		yield afterLine;
 	}
 }
@@ -112,6 +116,10 @@ export function* textRaster2ToDrawCommands(
 					cursorX += chars.length;
 				}
 			}
+			yield {
+				classRef: "x:EmitStyleChange",
+				sequence: cursorStyle = RESET_FORMATTING,
+			};
 		}
 	}
 }

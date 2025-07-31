@@ -1,4 +1,4 @@
-import * as ansicodes from 'https://deno.land/x/tui@2.1.11/src/utils/ansi_codes.ts';
+import * as ansicodes from './ansi.ts';
 
 export type TUIRenderer = (writer:WritableStreamDefaultWriter) => Promise<unknown>;
 

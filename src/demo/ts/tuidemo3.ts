@@ -6,7 +6,7 @@ import TextRaster2 from '../../lib/ts/termdraw/TextRaster2.ts';
 import TUIRenderStateManager from '../../lib/ts/termdraw/TUIRenderStateManager.ts';
 import { inputEvents } from '../../lib/ts/terminput/inputeventparser.ts';
 import { blitToRaster, createUniformRaster, drawTextToRaster, textRaster2ToDrawCommands, textRaster2ToLines } from '../../lib/ts/termdraw/textraster2utils.ts';
-import { RED_TEXT, RESET_FORMATTING, toAnsi } from '../../lib/ts/termdraw/ansi.ts';
+import { RED_TEXT, RED_BACKGROUND, RESET_FORMATTING, toAnsi } from '../../lib/ts/termdraw/ansi.ts';
 import { iterateAndReturn, mergeAsyncIterables } from '../../lib/ts/_util/asynciterableutil.ts';
 import { Signal } from 'https://deno.land/x/tui@2.1.11/mod.ts';
 import { reset } from 'https://deno.land/std@0.165.0/fmt/colors.ts';
@@ -42,7 +42,7 @@ interface PossiblyTUIAppContext {
 }
 
 interface Rasterable {
-	toRaster(screenSize:Vec2D<number>) : TextRaster2;
+	toRaster(minSize:Vec2D<number>, maxSize:Vec2D<number>) : TextRaster2;
 }
 
 type AppInputEvent = KeyEvent
@@ -118,10 +118,11 @@ async function runTuiApp<Result>(
 				return outProm.then(() => ctx.stdout.write(textEncoder.encode(text)));
 			},
 			setScene(scene:Rasterable) {
-				const outCommands = textRaster2ToLines(scene.toRaster(getScreenSize()));
+				const outCommands = textRaster2ToLines(scene.toRaster({x:0,y:0}, getScreenSize()));
 				for( const command of outCommands ) {
 					outProm = outProm.then(() => ctx.stdout.write(textEncoder.encode(toAnsi(command))));
 				}
+				// outProm = outProm.then(() => ctx.stdout.write(textEncoder.encode(RESET_FORMATTING)));
 			}
 		}
 	})() : (() => {
@@ -135,11 +136,13 @@ async function runTuiApp<Result>(
 		
 		const renderStateMan = new TUIRenderStateManager(ctx.stdout, async (out) => {
 			await outProm;
-			const raster = currentScene.toRaster(getScreenSize());
+			const screenSize = getScreenSize();
+			const raster = currentScene.toRaster(screenSize, screenSize);
 			const outCommands = textRaster2ToDrawCommands(raster);
 			for( const command of outCommands ) {
 				await out.write(textEncoder.encode(toAnsi(command)));
 			}
+			// await ctx.stdout.write(textEncoder.encode(RESET_FORMATTING));
 		});
 		
 		function setMode(newInTui:boolean) : Promise<void> {
@@ -219,13 +222,32 @@ abstract class AbstractAppInstance<Input,Result> extends AbstractWaitable<Result
 	handleInput(_rejectinput: Input): void {}
 }
 
+function clamp(val:number, min:number, max:number) : number {
+	return val < min ? min : val > max ? max : val;
+}
+
+function clampSize(val:Vec2D<number>, min:Vec2D<number>, max:Vec2D<number>) : Vec2D<number> {
+	return {
+		x: clamp(val.x, min.x, max.x),
+		y: clamp(val.y, min.y, max.y),
+	};
+}
+
 class DemoAppInstance extends AbstractAppInstance<KeyEvent,number> {
+	_requestCleanExit() {
+		// could be overridden to say goodbye first or use a signal or something idk
+		this._resolve(0);
+	}
+	_abort(reason:any) {
+		this._reject(reason);
+	}
+	
 	override handleInput(input:KeyEvent) {
-		if(
-			input.key == "q" ||
-			input.key == "c" && input.ctrlKey
-		) {
-			this._resolve(1);
+		if( input.key == "q" ) {
+			this._requestCleanExit();
+		}
+		if(input.key == "c" && input.ctrlKey) {
+			this._abort(new Error("Aborted by user"));
 		}
 	}
 }
@@ -242,10 +264,15 @@ class EchoAppInstance extends DemoAppInstance {
 		await this._ctx.writeOut("Hello.  I will echo some stuff shortly.\n");
 		await sleep(500);
 		this._ctx.setScene({
-			toRaster: (screenSize) => {
-				let rast = createUniformRaster({x:screenSize.x, y:this.#textLines.length+2}, " ", RESET_FORMATTING);
+			toRaster: (minSize, maxSize) => {
+				// TODO: Make a component framework or something lol
+				const idealSize = {
+					x: this.#textLines.map(l => l.length).reduce((a,b) => Math.max(a,b), 0) + 4,
+					y: this.#textLines.length + 2,
+				}
+				let rast = createUniformRaster(clampSize(idealSize, minSize, maxSize), " ", RED_BACKGROUND);
 				for( let i=0; i<this.#textLines.length; ++i ) {
-					rast = drawTextToRaster(rast, {x:1, y:i+1}, this.#textLines[i], RESET_FORMATTING);
+					rast = drawTextToRaster(rast, {x:2, y:i+1}, this.#textLines[i], RED_BACKGROUND);
 				}
 				return rast;
 			}
@@ -278,10 +305,14 @@ class ClockAppInstance extends DemoAppInstance {
 			this._inputKeyMessage,
 		];
 		this._ctx.setScene({
-			toRaster: (screenSize) => {
-				let rast = createUniformRaster({x:screenSize.x, y:textLines.length+2}, " ", RESET_FORMATTING);
+			toRaster: (minSize, maxSize) => {
+				const idealSize = {
+					x: textLines.map(l => l.length).reduce((a,b) => Math.max(a,b), 0) + 4,
+					y: textLines.length + 2,
+				}
+				let rast = createUniformRaster(clampSize(idealSize, minSize, maxSize), " ", RED_BACKGROUND);
 				for( let i=0; i<textLines.length; ++i ) {
-					rast = drawTextToRaster(rast, {x:1, y:i+1}, textLines[i], RESET_FORMATTING);
+					rast = drawTextToRaster(rast, {x:1, y:i+1}, textLines[i], RED_BACKGROUND);
 				}
 				return rast;
 			}
@@ -295,7 +326,6 @@ class ClockAppInstance extends DemoAppInstance {
 			this._redraw();
 			await sleep(1000);
 			++i;
-			if( i == 5 ) throw new Error("ppoopy butts");
 		}
 		return 0;
 	}

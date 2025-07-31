@@ -3,6 +3,14 @@ import DrawCommand from './DrawCommand.ts';
 
 export const RESET_FORMATTING = "\x1b[0m";
 export const RED_TEXT = "\x1b[31m";
+export const RED_BACKGROUND = "\x1b[41m";
+
+export const SHOW_CURSOR = `\x1b[?25h`;
+export const HIDE_CURSOR = `\x1b[?25l`;
+export const CLEAR_SCREEN = `\x1b[2J`;
+export const USE_SECONDARY_BUFFER = "\x1b[?1049h";
+export const USE_PRIMARY_BUFFER = "\x1b[?1049l";
+
 
 export function ansiEscape(text:string) : string {
 	return text.replaceAll("\x1b", "\u241B");
