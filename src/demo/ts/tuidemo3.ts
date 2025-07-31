@@ -89,7 +89,7 @@ class EchoAppInstance extends AbstractAppInstance<any,number> {
 	constructor(textLines:string[], ctx:PossiblyTUIAppContext) {
 		super(ctx)
 		this.#textLines = textLines;
-		this.start();
+		this.run().then(exitCode => this._exit(exitCode));
 	}
 	
 	protected async run() : Promise<number> {
@@ -107,10 +107,6 @@ class EchoAppInstance extends AbstractAppInstance<any,number> {
 		await sleep(1000);
 		await this._ctx.writeOut("Now we're back to regular output.\n");
 		return 0;
-	}
-	
-	protected start() {
-		this.run().then(exitCode => this._exit(exitCode));
 	}
 }
 
