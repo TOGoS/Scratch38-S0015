@@ -81,19 +81,20 @@ abstract class AbstractAppInstance<Input,Result> extends AbstractWaitable<Result
 ////
 
 class EchoAppInstance extends AbstractAppInstance<any,number> {
-	#text : string;
-	constructor(text:string, outputHandler:(scene:Rasterable)=>void) {
+	#textLines : string[];
+	constructor(textLines:string[], outputHandler:(scene:Rasterable)=>void) {
 		super(outputHandler)
-		this.#text = text;
+		this.#textLines = textLines;
 		this.run();
 	}
 	
 	protected run() {
 		this._outputHandler({
 			toRaster: (screenSize) => {
-				let rast = createUniformRaster({x:screenSize.x, y:3}, " ", RESET_FORMATTING);
-				rast = drawTextToRaster(rast, {x:1, y:1}, this.#text, RESET_FORMATTING);
-				rast = drawTextToRaster(rast, {x:1, y:2}, this.#text + " (again)", RESET_FORMATTING);
+				let rast = createUniformRaster({x:screenSize.x, y:this.#textLines.length+2}, " ", RESET_FORMATTING);
+				for( let i=0; i<this.#textLines.length; ++i ) {
+					rast = drawTextToRaster(rast, {x:1, y:i+1}, this.#textLines[i], RESET_FORMATTING);
+				}
 				return rast;
 			}
 		});
@@ -180,9 +181,86 @@ async function runTuiApp<Result>(
 	}
 }
 
-if( import.meta.main ) {
+//// Over-engineered process spawning stuff
+
+interface TopArgs {
+	appName : string;
+	appArgs : string[];
+}
+
+function parseTopArgs(args:string[]) : TopArgs {
+	let appArgs : string[] = [];
+	let appName : string = "no-app-specified";
+	for( let i=0; i<args.length; ++i ) {
+		if( args[i].startsWith("-") ) {
+			appArgs.push(args[i]);
+		} else {
+			appName = args[i];
+			appArgs = appArgs.concat(args.slice(i+1));
+		}
+	}
+	return { appName, appArgs };
+}
+
+interface ProcLikeSpawnContext {
+	stdin  : typeof Deno.stdin;
+	stdout : typeof Deno.stdout;
+	stderr : typeof Deno.stderr;
+}
+
+interface Spawner<C,R> {
+	spawn(ctx:C) : R;
+}
+
+function tuiAppToProcLike<R>(
+	app:TerminalAppSpawner<TerminalAppContext, Waitable<R>, KeyEvent>,
+	outputMode : "screen"|"lines"
+) : Spawner<ProcLikeSpawnContext, Waitable<R>> {
+	return {
+		spawn(ctx:ProcLikeSpawnContext) : Waitable<R> {
+			const exitCodePromise = runTuiApp(app, {
+				stdin: ctx.stdin,
+				stdout: ctx.stdout.writable.getWriter()
+			}, {
+				outputMode
+			});
+			return {
+				wait() { return exitCodePromise }
+			};
+		}
+	}
+}
+
+function echoAndExitApp(toStdout:string[], toStderr:string[], exitCode:number) : Spawner<ProcLikeSpawnContext,Waitable<number>> {
+	const textEncoder = new TextEncoder();
+	return {
+		spawn(ctx:ProcLikeSpawnContext) : Waitable<number> {
+			async function run() : Promise<number> {
+				if( toStdout.length > 0 ) {
+					const writer = ctx.stdout.writable.getWriter();
+					for( const line of toStdout ) {
+						await writer.write(textEncoder.encode(line+"\n"));
+					}
+				}
+				if( toStderr.length > 0 ) {
+					const writer = ctx.stderr.writable.getWriter();
+					for( const line of toStderr ) {
+						await writer.write(textEncoder.encode(line+"\n"));
+					}
+				}
+				return exitCode;
+			}
+			const prom = run();
+			return { wait: () => prom }
+		}
+	}
+}
+
+function parseMain(args:string[]) : Spawner<ProcLikeSpawnContext,Waitable<number>> {
+	const topArgs = parseTopArgs(args);
+	
 	let outputMode : "screen"|"lines" = "screen";
-	for( const arg of Deno.args ) {
+	for( const arg of topArgs.appArgs ) {
 		let m : RegExpExecArray|null;
 		if( (m = /^--output-mode=(screen|lines)$/.exec(arg)) != null ) {
 			outputMode = m[1] as "screen"|"lines";
@@ -190,16 +268,24 @@ if( import.meta.main ) {
 			throw new Error(`Unrecognized argument: '${arg}'`);
 		}
 	}
-	
-	const exitCode = await runTuiApp({
-		usesRawInput: false,
-		spawn({viewSink}) {
-			return new EchoAppInstance("Hello, world!", viewSink);
-		}
-	}, {
-		stdin:Deno.stdin, stdout:Deno.stdout.writable.getWriter()
-	}, {
-		outputMode
-	});
-	Deno.exit(exitCode);
+		
+	if( topArgs.appName == "hello" ) {
+		return tuiAppToProcLike({
+			usesRawInput: false,
+			spawn({viewSink}) {
+				return new EchoAppInstance([
+					"Hello, world!",
+					"How's it going?"
+				], viewSink);
+			}
+		}, outputMode);
+	} else if( topArgs.appName == "no-app-specified" ) {
+		return echoAndExitApp([], ["No app specified; try 'hello'"], 1);
+	} else {
+		return echoAndExitApp([], [`Unrecognized command '${topArgs.appName}'`], 1);
+	}
+}
+
+if( import.meta.main ) {
+	Deno.exit(await parseMain(Deno.args).spawn(Deno).wait())
 }
