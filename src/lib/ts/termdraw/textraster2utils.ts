@@ -60,7 +60,7 @@ export function* textRaster2ToLines(
 				text: chars.join(''),
 			};
 		}
-		yield {
+		if( cursorStyle != RESET_FORMATTING ) yield {
 			classRef: "x:EmitStyleChange",
 			sequence: cursorStyle = RESET_FORMATTING,
 		};
@@ -73,14 +73,14 @@ export function* textRaster2ToDrawCommands(
 	regions:Iterable<AABB2D<number>> = [textRaster2Bounds(raster)],
 	offset:Vec2D<number> = {x:0, y:0}
 ) : Iterable<DrawCommand> {
+	let cursorY : number|undefined = undefined;
+	let cursorX : number|undefined = undefined;
+	let cursorStyle : string|undefined = undefined;
 	for( const reg of regions ) {
 		const y0 = clamp(reg.y0, 0, raster.size.y);
 		const x0 = clamp(reg.x0, 0, raster.size.x);
 		const y1 = clamp(reg.y1, 0, raster.size.y);
 		const x1 = clamp(reg.x1, 0, raster.size.x);
-		let cursorY : number|undefined = undefined;
-		let cursorX : number|undefined = undefined;
-		let cursorStyle : string|undefined = undefined;
 		for( let y=y0; y<y1; ++y ) {
 			for( let x=x0; x<x1; ) {
 				if( raster.chars[y][x] == "" ) {
@@ -116,12 +116,12 @@ export function* textRaster2ToDrawCommands(
 					cursorX += chars.length;
 				}
 			}
-			yield {
-				classRef: "x:EmitStyleChange",
-				sequence: cursorStyle = RESET_FORMATTING,
-			};
 		}
 	}
+	if( cursorStyle != RESET_FORMATTING ) yield {
+		classRef: "x:EmitStyleChange",
+		sequence: cursorStyle = RESET_FORMATTING,
+	};
 }
 
 // toChars will be important for translating x:EmitText to chars for a raster
