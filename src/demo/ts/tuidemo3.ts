@@ -49,13 +49,22 @@ type AppInputEvent = KeyEvent
 
 
 class AbstractWaitable<Result> implements Waitable<Result> {
-	protected _exit : (r:Result) => void = (res) => { throw new Error(`#exit not yet initialized!`); };
+	protected _resolve : (r:Result) => void = (res) => { throw new Error(`#exit not yet initialized!`); };
+	protected _reject : (e:any) => void = (res) => { throw new Error(`#crash not yet initialized!`); };
 	protected _exited : boolean = false;
 	#exited : Promise<Result>;
 	
 	constructor() {
 		this.#exited = new Promise<Result>((resolve,reject) => {
-			this._exit = (result) => {
+			this._reject = (e) => {
+				if( this._exited ) {
+					// Ignore it; only the first call counts.
+					return;
+				}
+				this._exited = true;
+				reject(e);
+			}
+			this._resolve = (result) => {
 				if( this._exited ) {
 					// Ignore it; only the first call counts.
 					return;
@@ -212,7 +221,7 @@ class DemoAppInstance extends AbstractAppInstance<KeyEvent,number> {
 			input.key == "q" ||
 			input.key == "c" && input.ctrlKey
 		) {
-			this._exit(1);
+			this._resolve(1);
 		}
 	}
 }
@@ -222,7 +231,7 @@ class EchoAppInstance extends DemoAppInstance {
 	constructor(textLines:string[], ctx:PossiblyTUIAppContext) {
 		super(ctx)
 		this.#textLines = textLines;
-		this.run().then(exitCode => this._exit(exitCode));
+		this.run().then(exitCode => this._resolve(exitCode), error => this._reject(error));
 	}
 	
 	protected async run() : Promise<number> {
@@ -249,7 +258,7 @@ class ClockAppInstance extends DemoAppInstance {
 	constructor(ctx:PossiblyTUIAppContext) {
 		super(ctx);
 		this._inputKeyMessage = "";
-		this.run().then(exitCode => this._exit(exitCode));
+		this.run().then(exitCode => this._resolve(exitCode), error => this._reject(error));
 	}
 	
 	override handleInput(input: KeyEvent): void {
@@ -282,6 +291,7 @@ class ClockAppInstance extends DemoAppInstance {
 			this._redraw();
 			await sleep(1000);
 			++i;
+			if( i == 5 ) throw new Error("ppoopy butts");
 		}
 		return 0;
 	}
