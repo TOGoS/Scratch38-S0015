@@ -50,11 +50,19 @@ type AppInputEvent = KeyEvent
 
 class AbstractWaitable<Result> implements Waitable<Result> {
 	protected _exit : (r:Result) => void = (res) => { throw new Error(`#exit not yet initialized!`); };
+	protected _exited : boolean = false;
 	#exited : Promise<Result>;
 	
 	constructor() {
 		this.#exited = new Promise<Result>((resolve,reject) => {
-			this._exit = resolve;
+			this._exit = (result) => {
+				if( this._exited ) {
+					// Ignore it; only the first call counts.
+					return;
+				}
+				this._exited = true;
+				resolve(result);
+			};
 		});
 	}
 		
