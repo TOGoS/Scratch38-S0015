@@ -335,3 +335,19 @@ to e.g. emit a different raster size when in screen mode.
 
 Currently `EchoAppInstance` hardcodes the output height to 3 lines,
 but that's not real 'scalable'.
+
+## 2025-07-31
+
+### Use of underscores in names
+
+I used to say "ugh no!" when I saw names prefixed with underscores.
+
+But now I am using it to mean something specific:
+name beginning with underscore is intended to be called 'from inside'
+the object, whereas those that are not are to be called 'from outside'.
+This is sort of orthogonal to whether they are public or private.
+
+e.g. `_exit`.  Obviously you don't call that to tell the process to quit!
+It is called *by* the process as part of the implementation of quitting.
+Telling the process you *want* it to quit would be something else.
+I think the underscore helps make this clear.
