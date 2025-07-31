@@ -120,7 +120,7 @@ export function* textRaster2ToDrawCommands(
 
 const CHARS_REGEX = /(?:.(\u200D.)*)/gu;
 export function toChars(str:string) : string[] {
-	return str.match(CHARS_REGEX)!;
+	return str.match(CHARS_REGEX) ?? [];
 }
 
 function createUniformList<T>(length:number, item:T) : T[] {

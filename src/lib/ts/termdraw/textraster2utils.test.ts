@@ -66,6 +66,11 @@ Deno.test("toChars on simple ascii", () => {
 Deno.test("toChars on a family", () => {
 	assertEquals(toChars(`foo ${FAMILY_EMOJI} bar`), ["f","o","o"," ",FAMILY_EMOJI," ","b","a","r"]);
 });
+Deno.test("toChars on empty string", () => {
+	assertEquals(toChars(""), []);
+});
+
+
 
 Deno.test("createUniformRaster", () => {
 	const c0 = ";";
