@@ -13,16 +13,13 @@ import { reset } from 'https://deno.land/std@0.165.0/fmt/colors.ts';
 
 //// Some types that could be librarified if this all works
 
-type TerminalAppSpawner<Context,Instance,InputEvent> = {
+type PossiblyTUIAppSpawner<Context,Instance,InputEvent> = {
 	usesRawInput: true,
 	spawn(context: Context) : Instance & {handleInput(input:InputEvent) : void};
 } | {
 	usesRawInput: false,
 	spawn(context: Context) : Instance;
 };
-interface AppSpawnOptions {
-	outputMode: "screen"|"lines";
-}
 
 // ProcessLike, but more abstract
 interface Waitable<R> {
@@ -33,13 +30,14 @@ interface TUIAppInstance<I,R> extends Waitable<R> {
 	handleInput(input:I) : void;
 }
 
-interface TerminalAppContext {
+interface PossiblyTUIAppContext {
 	// Hmm: Directly using Readable/WritableStreams might not be the most useful thing;
 	// will try and find out later.
 	stdin?   : ReadableStream<Uint8Array>;
 	//stdout : WritableStream<Uint8Array>;
 	//stderr : WritableStream<Uint8Array>;
-	viewSink : (r:Rasterable)=>void;
+	writeOut(text:string) : Promise<void>;
+	setScene(scene:Rasterable) : void;
 }
 
 interface Rasterable {
@@ -65,11 +63,11 @@ class AbstractWaitable<Result> implements Waitable<Result> {
 }
 
 abstract class AbstractAppInstance<Input,Result> extends AbstractWaitable<Result> implements TUIAppInstance<Input,Result> {
-	protected _outputHandler : (scene:Rasterable) => void;
+	protected _ctx : PossiblyTUIAppContext;
 	
-	constructor(outputHandler:(scene:Rasterable)=>void) {
+	constructor(ctx:PossiblyTUIAppContext) {
 		super();
-		this._outputHandler = outputHandler;
+		this._ctx = ctx;
 	}
 	
 	handleInput(_input: Input): void { }
@@ -80,16 +78,24 @@ abstract class AbstractAppInstance<Input,Result> extends AbstractWaitable<Result
 
 ////
 
+function sleep(ms:number) {
+	return new Promise((resolve,_reject) => {
+		setTimeout(resolve, ms);
+	});
+}
+
 class EchoAppInstance extends AbstractAppInstance<any,number> {
 	#textLines : string[];
-	constructor(textLines:string[], outputHandler:(scene:Rasterable)=>void) {
-		super(outputHandler)
+	constructor(textLines:string[], ctx:PossiblyTUIAppContext) {
+		super(ctx)
 		this.#textLines = textLines;
-		this.run();
+		this.start();
 	}
 	
-	protected run() {
-		this._outputHandler({
+	protected async run() : Promise<number> {
+		await this._ctx.writeOut("Hello.  I will echo some stuff shortly.\n");
+		await sleep(500);
+		this._ctx.setScene({
 			toRaster: (screenSize) => {
 				let rast = createUniformRaster({x:screenSize.x, y:this.#textLines.length+2}, " ", RESET_FORMATTING);
 				for( let i=0; i<this.#textLines.length; ++i ) {
@@ -98,17 +104,25 @@ class EchoAppInstance extends AbstractAppInstance<any,number> {
 				return rast;
 			}
 		});
-		setTimeout(() => this._exit(0), 1000);
+		await sleep(1000);
+		await this._ctx.writeOut("Now we're back to regular output.\n");
+		return 0;
+	}
+	
+	protected start() {
+		this.run().then(exitCode => this._exit(exitCode));
 	}
 }
 
 async function runTuiApp<Result>(
-	spawner: TerminalAppSpawner<TerminalAppContext, Waitable<Result>, KeyEvent>,
+	spawner: PossiblyTUIAppSpawner<PossiblyTUIAppContext, Waitable<Result>, KeyEvent>,
 	ctx:{
 		stdin  : typeof Deno.stdin,
 		stdout : WritableStreamDefaultWriter
 	},
-	opts: AppSpawnOptions,
+	opts: {
+		outputMode: "screen"|"lines"
+	}
 ) : Promise<Result> {
 	const textEncoder = new TextEncoder();
 	
@@ -120,14 +134,18 @@ async function runTuiApp<Result>(
 	const outMan : {
 		enter() : Promise<void>;
 		exit() : Promise<void>;
-		update(scene:Rasterable) : void;
+		writeOut(text:string) : Promise<void>;
+		setScene(scene:Rasterable) : void;
 	} = opts.outputMode == "lines" ? (() => {
 		let outProm = Promise.resolve();
 		
 		return {
 			enter() { return outProm; },
 			exit() { return outProm; },
-			update(scene:Rasterable) {
+			writeOut(text:string) {
+				return outProm.then(() => ctx.stdout.write(textEncoder.encode(text)));
+			},
+			setScene(scene:Rasterable) {
 				const outCommands = textRaster2ToLines(scene.toRaster(getScreenSize()));
 				for( const command of outCommands ) {
 					outProm = outProm.then(() => ctx.stdout.write(textEncoder.encode(toAnsi(command))));
@@ -140,8 +158,11 @@ async function runTuiApp<Result>(
 				return createUniformRaster(size, " ", RESET_FORMATTING);
 			}
 		}
+		let outProm = Promise.resolve();
+		let inTui = false; // At whatever point in time outProm represents
 		
 		const renderStateMan = new TUIRenderStateManager(ctx.stdout, async (out) => {
+			await outProm;
 			const raster = currentScene.toRaster(getScreenSize());
 			const outCommands = textRaster2ToDrawCommands(raster);
 			for( const command of outCommands ) {
@@ -149,11 +170,25 @@ async function runTuiApp<Result>(
 			}
 		});
 		
+		function setMode(newInTui:boolean) : Promise<void> {
+			outProm =
+				newInTui == inTui ? outProm :
+				newInTui ? outProm.then(() => renderStateMan.enterTui()) :
+				           outProm.then(() => renderStateMan.exitTui());
+			inTui = newInTui;
+			return outProm;
+		}
+		
 		return {
-			enter: () => renderStateMan.enterTui(),
-			exit : () => renderStateMan.exitTui(),
-			update(scene:Rasterable) {
+			enter: () => outProm,
+			exit : () => setMode(false),
+			async writeOut(text:string) {
+				await setMode(false);
+				await ctx.stdout.write(textEncoder.encode(text));
+			},
+			setScene(scene:Rasterable) {
 				currentScene = scene;
+				setMode(true);
 				renderStateMan.requestRedraw();
 			}
 		};
@@ -164,7 +199,8 @@ async function runTuiApp<Result>(
 		if( spawner.usesRawInput ) ctx.stdin.setRaw(true);
 		
 		const appInstance = spawner.spawn({
-			viewSink: outMan.update
+			writeOut: outMan.writeOut,
+			setScene: outMan.setScene,
 		});
 		
 		// App is started!
@@ -213,7 +249,7 @@ interface Spawner<C,R> {
 }
 
 function tuiAppToProcLike<R>(
-	app:TerminalAppSpawner<TerminalAppContext, Waitable<R>, KeyEvent>,
+	app:PossiblyTUIAppSpawner<PossiblyTUIAppContext, Waitable<R>, KeyEvent>,
 	outputMode : "screen"|"lines"
 ) : Spawner<ProcLikeSpawnContext, Waitable<R>> {
 	return {
@@ -272,11 +308,11 @@ function parseMain(args:string[]) : Spawner<ProcLikeSpawnContext,Waitable<number
 	if( topArgs.appName == "hello" ) {
 		return tuiAppToProcLike({
 			usesRawInput: false,
-			spawn({viewSink}) {
+			spawn(ctx:PossiblyTUIAppContext) {
 				return new EchoAppInstance([
 					"Hello, world!",
 					"How's it going?"
-				], viewSink);
+				], ctx);
 			}
 		}, outputMode);
 	} else if( topArgs.appName == "no-app-specified" ) {
