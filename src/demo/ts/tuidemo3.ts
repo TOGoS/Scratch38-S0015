@@ -14,10 +14,11 @@ import { reset } from 'https://deno.land/std@0.165.0/fmt/colors.ts';
 //// Some types that could be librarified if this all works
 
 type PossiblyTUIAppSpawner<Context,Instance,InputEvent> = {
-	usesRawInput: true,
+	// Framework will push key events to the app 'asynchronously'
+	inputMode: "push-key-events",
 	spawn(context: Context) : Instance & {handleInput(input:InputEvent) : void};
 } | {
-	usesRawInput: false,
+	inputMode: "none",
 	spawn(context: Context) : Instance;
 };
 
@@ -189,10 +190,14 @@ async function runTuiApp<Result>(
 			}
 		};
 	})();
-	
+
+	let rawModeSet = false;
 	try {
 		await outMan.enter();
-		if( spawner.usesRawInput ) ctx.stdin.setRaw(true);
+		if( spawner.inputMode == "push-key-events" ) {
+			ctx.stdin.setRaw(true);
+			rawModeSet = true;
+		}
 		
 		const appInstance = spawner.spawn({
 			writeOut: outMan.writeOut,
@@ -201,14 +206,14 @@ async function runTuiApp<Result>(
 		
 		// App is started!
 		
-		if( spawner.usesRawInput ) {
+		if( spawner.inputMode == "push-key-events" ) {
 		// TODO: Parse input, pass it to the app!
 		}
 		
 		const exitCode = await appInstance.wait();
 		return exitCode;
 	} finally {
-		if( spawner.usesRawInput ) ctx.stdin.setRaw(false);
+		if( rawModeSet ) ctx.stdin.setRaw(false);
 		await outMan.exit();
 	}
 }
@@ -303,7 +308,7 @@ function parseMain(args:string[]) : Spawner<ProcLikeSpawnContext,Waitable<number
 		
 	if( topArgs.appName == "hello" ) {
 		return tuiAppToProcLike({
-			usesRawInput: false,
+			inputMode: "none",
 			spawn(ctx:PossiblyTUIAppContext) {
 				return new EchoAppInstance([
 					"Hello, world!",
@@ -317,6 +322,10 @@ function parseMain(args:string[]) : Spawner<ProcLikeSpawnContext,Waitable<number
 		return echoAndExitApp([], [`Unrecognized command '${topArgs.appName}'`], 1);
 	}
 }
+
+// TODO: Demo an app that reads from stdin
+//   - Does C-c still work to kill it, if input was piped?
+// TODO: Demo an app that handles input events
 
 if( import.meta.main ) {
 	Deno.exit(await parseMain(Deno.args).spawn(Deno).wait())
