@@ -351,3 +351,33 @@ e.g. `_exit`.  Obviously you don't call that to tell the process to quit!
 It is called *by* the process as part of the implementation of quitting.
 Telling the process you *want* it to quit would be something else.
 I think the underscore helps make this clear.
+
+### The TUIDemo app framework seems decent enough
+
+Code could use some better organizing and better names,
+but this framework (the 'framework' being the `runTuiApp` function
+defined in [tuidemo3.ts](./src/demo/ts/tuidemo3.ts))
+seems like it allows 'TUI apps' to be written without too much fuss.
+
+I still want to demonstrate an app that updates itself based
+on data coming in from standard input.
+
+It might be good to have a standard way to ensure that
+the screen gets redrawn when the screen size changes.
+
+### Component system
+
+Basically I just want a way to automatically lay out a bunch of stuff.
+It might not even need to be a persistent object tree.
+
+First stab at this is [components1.ts](./src/scratch/ts/components1.ts).
+In the process of writing that stuff I started thinking
+that I would prefer a more 'unified' approach.
+i.e. one where components have the same API as the whole app,
+which is currently
+
+```typescript
+interface Rasterable {
+	toRaster(minSize:Vec2D<number>, maxSize:Vec2D<number>) : TextRaster2;
+}
+```
