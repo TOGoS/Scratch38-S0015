@@ -71,52 +71,10 @@ class AbstractWaitable<Result> implements Waitable<Result> {
 	}
 }
 
-abstract class AbstractAppInstance<Input,Result> extends AbstractWaitable<Result> implements TUIAppInstance<Input,Result> {
-	protected _ctx : PossiblyTUIAppContext;
-	
-	constructor(ctx:PossiblyTUIAppContext) {
-		super();
-		this._ctx = ctx;
-	}
-	
-	handleInput(_input: Input): void { }
-}
-
-//// Scene stuff?
-
-
-////
-
 function sleep(ms:number) {
 	return new Promise((resolve,_reject) => {
 		setTimeout(resolve, ms);
 	});
-}
-
-class EchoAppInstance extends AbstractAppInstance<any,number> {
-	#textLines : string[];
-	constructor(textLines:string[], ctx:PossiblyTUIAppContext) {
-		super(ctx)
-		this.#textLines = textLines;
-		this.run().then(exitCode => this._exit(exitCode));
-	}
-	
-	protected async run() : Promise<number> {
-		await this._ctx.writeOut("Hello.  I will echo some stuff shortly.\n");
-		await sleep(500);
-		this._ctx.setScene({
-			toRaster: (screenSize) => {
-				let rast = createUniformRaster({x:screenSize.x, y:this.#textLines.length+2}, " ", RESET_FORMATTING);
-				for( let i=0; i<this.#textLines.length; ++i ) {
-					rast = drawTextToRaster(rast, {x:1, y:i+1}, this.#textLines[i], RESET_FORMATTING);
-				}
-				return rast;
-			}
-		});
-		await sleep(1000);
-		await this._ctx.writeOut("Now we're back to regular output.\n");
-		return 0;
-	}
 }
 
 async function runTuiApp<Result>(
@@ -215,16 +173,120 @@ async function runTuiApp<Result>(
 		// App is started!
 		
 		if( spawner.inputMode == "push-key-events" ) {
-		// TODO: Parse input, pass it to the app!
+			const reader = async () => {
+				const inputHandler = appInstance as unknown as {handleInput(evt:KeyEvent):void};
+				for await( const inputEvent of inputEvents(ctx.stdin.readable) ) {
+					inputHandler.handleInput(inputEvent);
+				}
+			};
+			reader(); // TODO: Cancel somehow when app exits
 		}
 		
 		const exitCode = await appInstance.wait();
 		return exitCode;
 	} finally {
-		if( rawModeSet ) ctx.stdin.setRaw(false);
+		if( rawModeSet ) {
+			ctx.stdin.setRaw(false);
+			rawModeSet = false;
+		}
 		await outMan.exit();
 	}
 }
+
+//// Apps!
+
+abstract class AbstractAppInstance<Input,Result> extends AbstractWaitable<Result> implements TUIAppInstance<Input,Result> {
+	protected _ctx : PossiblyTUIAppContext;
+	
+	constructor(ctx:PossiblyTUIAppContext) {
+		super();
+		this._ctx = ctx;
+	}
+	
+	handleInput(_rejectinput: Input): void {}
+}
+
+class DemoAppInstance extends AbstractAppInstance<KeyEvent,number> {
+	override handleInput(input:KeyEvent) {
+		if(
+			input.key == "q" ||
+			input.key == "c" && input.ctrlKey
+		) {
+			this._exit(1);
+		}
+	}
+}
+
+class EchoAppInstance extends DemoAppInstance {
+	#textLines : string[];
+	constructor(textLines:string[], ctx:PossiblyTUIAppContext) {
+		super(ctx)
+		this.#textLines = textLines;
+		this.run().then(exitCode => this._exit(exitCode));
+	}
+	
+	protected async run() : Promise<number> {
+		await this._ctx.writeOut("Hello.  I will echo some stuff shortly.\n");
+		await sleep(500);
+		this._ctx.setScene({
+			toRaster: (screenSize) => {
+				let rast = createUniformRaster({x:screenSize.x, y:this.#textLines.length+2}, " ", RESET_FORMATTING);
+				for( let i=0; i<this.#textLines.length; ++i ) {
+					rast = drawTextToRaster(rast, {x:1, y:i+1}, this.#textLines[i], RESET_FORMATTING);
+				}
+				return rast;
+			}
+		});
+		await sleep(1000);
+		await this._ctx.writeOut("Now we're back to regular output.\n");
+		return 0;
+	}
+}
+
+class ClockAppInstance extends DemoAppInstance {
+	_inputKeyMessage : string;
+	
+	constructor(ctx:PossiblyTUIAppContext) {
+		super(ctx);
+		this._inputKeyMessage = "";
+		this.run().then(exitCode => this._exit(exitCode));
+	}
+	
+	override handleInput(input: KeyEvent): void {
+		this._inputKeyMessage = "Key pressed: " + JSON.stringify(input);
+		super.handleInput(input);
+		this._redraw();
+	}
+	
+	_redraw() : void {
+		const now = new Date();
+		const textLines : string[] = [
+			now.toString(),
+			this._inputKeyMessage,
+		];
+		this._ctx.setScene({
+			toRaster: (screenSize) => {
+				let rast = createUniformRaster({x:screenSize.x, y:textLines.length+2}, " ", RESET_FORMATTING);
+				for( let i=0; i<textLines.length; ++i ) {
+					rast = drawTextToRaster(rast, {x:1, y:i+1}, textLines[i], RESET_FORMATTING);
+				}
+				return rast;
+			}
+		});
+	}
+	
+	async run() : Promise<number> {
+		let i = 0;
+		while(i < 10 && !this._exited) {
+			// Hmm: Could use an abort signal or something.
+			this._redraw();
+			await sleep(1000);
+			++i;
+		}
+		return 0;
+	}
+}
+
 
 //// Over-engineered process spawning stuff
 
@@ -305,24 +367,30 @@ function parseMain(args:string[]) : Spawner<ProcLikeSpawnContext,Waitable<number
 	const topArgs = parseTopArgs(args);
 	
 	let outputMode : "screen"|"lines" = "screen";
+	let requestedInputMode : "none"|"push-key-events" = "none";
 	for( const arg of topArgs.appArgs ) {
 		let m : RegExpExecArray|null;
-		if( (m = /^--output-mode=(screen|lines)$/.exec(arg)) != null ) {
+		if( arg == '--capture-input' ) {
+			requestedInputMode = "push-key-events";
+		} else if( (m = /^--output-mode=(screen|lines)$/.exec(arg)) != null ) {
 			outputMode = m[1] as "screen"|"lines";
 		} else {
 			throw new Error(`Unrecognized argument: '${arg}'`);
 		}
 	}
-		
-	if( topArgs.appName == "hello" ) {
+
+	if( topArgs.appName == "clock" ) {
 		return tuiAppToProcLike({
-			inputMode: "none",
-			spawn(ctx:PossiblyTUIAppContext) {
-				return new EchoAppInstance([
-					"Hello, world!",
-					"How's it going?"
-				], ctx);
-			}
+			inputMode: requestedInputMode,
+			spawn: (ctx:PossiblyTUIAppContext)  => new ClockAppInstance(ctx),
+		}, outputMode);
+	} else if( topArgs.appName == "hello" ) {
+		return tuiAppToProcLike({
+			inputMode: requestedInputMode,
+			spawn: (ctx:PossiblyTUIAppContext) => new EchoAppInstance([
+				"Hello, world!",
+				"How's it going?"
+			], ctx),
 		}, outputMode);
 	} else if( topArgs.appName == "no-app-specified" ) {
 		return echoAndExitApp([], ["No app specified; try 'hello'"], 1);
