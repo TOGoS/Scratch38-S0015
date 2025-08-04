@@ -252,41 +252,6 @@ class DemoAppInstance extends AbstractAppInstance<KeyEvent,number> {
 	}
 }
 
-class EchoAndQuitAppInstance extends DemoAppInstance {
-	#text : string;
-	#style : Style;
-	constructor(text:string, style:Style, ctx:PossiblyTUIAppContext) {
-		super(ctx)
-		this.#text = text;
-		this.#style = style;
-		this._handleRunResult(this._run());
-	}
-	
-	_run() : Promise<number> {
-		const textLines = this.#text.trim().split("\n");
-		
-		this._ctx.setScene({
-			toRaster: (minSize, maxSize) => {
-				// TODO: Make a component framework or something lol
-				const idealSize = {
-					x: textLines.map(l => l.length).reduce((a,b) => Math.max(a,b), 0),
-					y: textLines.length,
-				}
-				let rast = createUniformRaster(clampSize(idealSize, minSize, maxSize), " ", this.#style);
-				for( let i=0; i<textLines.length; ++i ) {
-					rast = drawTextToRaster(rast, {x:0, y:i}, textLines[i], this.#style);
-				}
-				return rast;
-			}
-		});
-		
-		// TODO: Force output to flush before quitting!
-		// Unless the framework takes care of that.  Better make sure.
-		
-		return Promise.resolve(0);
-	}
-}
-
 class EchoAppInstance extends DemoAppInstance {
 	#textLines : string[];
 	constructor(textLines:string[], ctx:PossiblyTUIAppContext) {
@@ -369,24 +334,25 @@ class ClockAppInstance extends DemoAppInstance {
 
 //// Over-engineered process spawning stuff
 
-const HELP_TEXT =
-	"Usage: tuidemo3 [--capture-input] [--output-mode={screen|lines}] <appname>\n" +
-	"\n"
-	"A few simple apps to demonstrate a TUI app framework\n" +
-	"\n" +
-	"Options:\n" +
-	"  --capture-input ; Use 'raw mode'; application will parse key events\n" +
-	"  --output-mode=<mode>> ; Request the app operate with the given output mode\n" +
-	"                        ; (some apps will ignore this)\n" +
-	"\n" +
-	"Output modes (maybe badly named):\n" +
-	"  screen ; 'fullscreen'; app to use terminal as 2D canvas\n" +
-	"  lines  ; Output one line at a time, like a teletype\n" +
-	"\n" +
-	"Apps:\n" +
-	"  help   ; print this help text and exit\n" +
-	"  hello  ; Print some text, sleep a while, exit\n" +
-	"  clock  ; Show a clock, updated every second\n";
+const HELP_TEXT_LINES = [
+	"Usage: tuidemo3 [--capture-input] [--output-mode={screen|lines}] <appname>",
+	"",
+	"A few simple apps to demonstrate a TUI app framework",
+	"",
+	"Options:",
+	"  --capture-input ; Use 'raw mode'; application will parse key events",
+	"  --output-mode=<mode>> ; Request the app operate with the given output mode",
+	"                        ; (some apps will ignore this)",
+	"",
+	"Output modes (maybe badly named):",
+	"  screen ; 'fullscreen'; app to use terminal as 2D canvas",
+	"  lines  ; Output one line at a time, like a teletype",
+	"",
+	"Apps:",
+	"  help   ; print this help text and exit",
+	"  hello  ; Print some text, sleep a while, exit",
+	"  clock  ; Show a clock, updated every second",
+];
 
 interface TopArgs {
 	appName : string;
@@ -480,10 +446,7 @@ function parseMain(args:string[]) : Spawner<ProcLikeSpawnContext,Waitable<number
 	}
 
 	if( topArgs.appName == "help" ) {
-		return tuiAppToProcLike({
-			inputMode: requestedInputMode,
-			spawn: (ctx:PossiblyTUIAppContext)  => new EchoAndQuitAppInstance(HELP_TEXT, RESET_FORMATTING, ctx),
-		}, "lines");
+		return echoAndExitApp([], HELP_TEXT_LINES, 0);
 	} else if( topArgs.appName == "clock" ) {
 		return tuiAppToProcLike({
 			inputMode: requestedInputMode,
