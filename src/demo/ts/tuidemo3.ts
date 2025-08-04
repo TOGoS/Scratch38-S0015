@@ -103,6 +103,8 @@ async function runTuiApp<Result>(
 		return { x: cs.columns, y: cs.rows };
 	}
 	
+	// Output manager provides a common interface to manage terminal output,
+	// whether in screen or lines mode.
 	const outMan : {
 		enter() : Promise<void>;
 		exit() : Promise<void>;
@@ -170,8 +172,27 @@ async function runTuiApp<Result>(
 	})();
 
 	let rawModeSet = false;
+	let outManActive = false;
+	
+	async function cleanup() {
+		if( rawModeSet ) {
+			ctx.stdin.setRaw(false);
+			rawModeSet = false;
+		}
+		if( outManActive ) {
+			await outMan.exit();
+			outManActive = false;
+		}
+	}
+	
+	// Finally block is not run when the Deno process is killed with Ctrl+c
+	// (i.e. not in 'raw input' mode, in which case the program handles it).
+	// But this signal handler does seem to be run.
+	Deno.addSignalListener("SIGINT", () => cleanup() );
+	
 	try {
 		await outMan.enter();
+		outManActive = true;
 		if( spawner.inputMode == "push-key-events" ) {
 			ctx.stdin.setRaw(true);
 			rawModeSet = true;
@@ -197,11 +218,7 @@ async function runTuiApp<Result>(
 		const exitCode = await appInstance.wait();
 		return exitCode;
 	} finally {
-		if( rawModeSet ) {
-			ctx.stdin.setRaw(false);
-			rawModeSet = false;
-		}
-		await outMan.exit();
+		await cleanup();
 	}
 }
 
