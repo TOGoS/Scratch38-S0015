@@ -381,3 +381,14 @@ interface Rasterable {
 	toRaster(minSize:Vec2D<number>, maxSize:Vec2D<number>) : TextRaster2;
 }
 ```
+
+## 2025-08-05
+
+### `wc`
+
+Demonstrates an app that reads data from stdin
+(and also updates every second, because it has a clock in it).
+
+```sh
+deno run --check=all src\demo\ts\tuidemo3.ts wc - <README.md
+```

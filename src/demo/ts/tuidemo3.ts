@@ -363,7 +363,12 @@ class ClockAppInstance extends DemoAppInstance {
 	}
 }
 
-/** App that demonstrates reading from stdin */
+/**
+ * App that demonstrates reading from stdin
+ * 
+ * TODO: Read from files specified on command-line
+ * TODO: Use TBD component system to lay out/render
+ */
 class WCAppInstance extends DemoAppInstance {
 	#input : AsyncIterable<Uint8Array>;
 	constructor(ctx:PossiblyTUIAppContext) {
@@ -390,22 +395,22 @@ class WCAppInstance extends DemoAppInstance {
 	_refreshTimer : number|undefined;
 	
 	_updateView() {
-		const now = new Date();
-		const textLines : string[] = [
-			now.toString(),
-			`Read ${this._byteCount} bytes`,
-			`Read ${this._lineCount} bytes`,
-			`EOF reached? ${this._eofReached}`,
-		];
 		this._ctx.setScene({
 			toRaster: (minSize, maxSize) => {
+				const now = new Date();
+				const textLines : [string,Style][] = [
+					[now.toString()                    ,RESET_FORMATTING],
+					[`Read ${this._byteCount} bytes`   ,RED_BACKGROUND  ],
+					[`Read ${this._lineCount} bytes`   ,RED_BACKGROUND  ],
+					[`EOF reached? ${this._eofReached}`,RED_BACKGROUND  ],
+				];
 				const idealSize = {
 					x: textLines.map(l => l.length).reduce((a,b) => Math.max(a,b), 0) + 4,
 					y: textLines.length + 2,
 				}
 				let rast = createUniformRaster(clampSize(idealSize, minSize, maxSize), " ", RED_BACKGROUND);
 				for( let i=0; i<textLines.length; ++i ) {
-					rast = drawTextToRaster(rast, {x:1, y:i+1}, textLines[i], RED_BACKGROUND);
+					rast = drawTextToRaster(rast, {x:1, y:i+1}, textLines[i][0], textLines[i][1]);
 				}
 				return rast;
 			}
@@ -540,6 +545,9 @@ function parseMain(args:string[]) : Spawner<ProcLikeSpawnContext,Waitable<number
 			requestedInputMode = "push-key-events";
 		} else if( (m = /^--output-mode=(screen|lines)$/.exec(arg)) != null ) {
 			outputMode = m[1] as "screen"|"lines";
+		} else if( arg == '-' ) {
+			// Means 'wc should read from stdin'.
+			// TODO: Allow apps to deal with their own arguments.
 		} else {
 			throw new Error(`Unrecognized argument: '${arg}'`);
 		}
@@ -572,9 +580,9 @@ function parseMain(args:string[]) : Spawner<ProcLikeSpawnContext,Waitable<number
 	}
 }
 
-// TODO: Demo an app that reads from stdin
-//   - Does C-c still work to kill it, if input was piped?
-// TODO: Demo an app that handles input events
+// TODO: Put all the frameworky stuff in a library
+// TODO: Some kind of component library that
+//   automatically lays things out, can draw boxes, tables, etc
 
 if( import.meta.main ) {
 	Deno.exit(await parseMain(Deno.args).spawn(Deno).wait())
