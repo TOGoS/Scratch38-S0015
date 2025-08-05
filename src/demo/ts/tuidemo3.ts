@@ -54,6 +54,11 @@ class AbstractWaitable<Result> implements Waitable<Result> {
 	protected _exited : boolean = false;
 	#exited : Promise<Result>;
 	
+	/** Close any opened resources, etc */
+	_cleanup() : Promise<void> {
+		return Promise.resolve();
+	}
+	
 	constructor() {
 		this.#exited = new Promise<Result>((resolve,reject) => {
 			this._reject = (e) => {
@@ -62,7 +67,7 @@ class AbstractWaitable<Result> implements Waitable<Result> {
 					return;
 				}
 				this._exited = true;
-				reject(e);
+				this._cleanup().finally(() => reject(e));
 			}
 			this._resolve = (result) => {
 				if( this._exited ) {
@@ -70,7 +75,7 @@ class AbstractWaitable<Result> implements Waitable<Result> {
 					return;
 				}
 				this._exited = true;
-				resolve(result);
+				this._cleanup().finally(() => resolve(result));
 			};
 		});
 	}
@@ -188,17 +193,27 @@ async function runTuiApp<Result>(
 	// Finally block is not run when the Deno process is killed with Ctrl+c
 	// (i.e. not in 'raw input' mode, in which case the program handles it).
 	// But this signal handler does seem to be run.
-	Deno.addSignalListener("SIGINT", () => cleanup() );
+	// 
+	// I have not figured out how to clean up
+	// when Ctrl+C is pressed while the process
+	// is reading from stdin.
+	Deno.addSignalListener("SIGINT", cleanup);
 	
 	try {
 		await outMan.enter();
 		outManActive = true;
+		
+		let stdin : ReadableStream<Uint8Array>|undefined;
 		if( spawner.inputMode == "push-key-events" ) {
 			ctx.stdin.setRaw(true);
 			rawModeSet = true;
+			stdin = undefined;
+		} else {
+			stdin = ctx.stdin.readable;
 		}
 		
 		const appInstance = spawner.spawn({
+			stdin   : stdin,
 			writeOut: outMan.writeOut,
 			setScene: outMan.setScene,
 		});
@@ -348,6 +363,73 @@ class ClockAppInstance extends DemoAppInstance {
 	}
 }
 
+/** App that demonstrates reading from stdin */
+class WCAppInstance extends DemoAppInstance {
+	#input : AsyncIterable<Uint8Array>;
+	constructor(ctx:PossiblyTUIAppContext) {
+		super(ctx);
+		if( !ctx.stdin ) {
+			throw new Error("No input stream");
+		}
+		this.#input = ctx.stdin;
+		this._handleRunResult(this._run());
+	}
+	
+	override _cleanup() : Promise<void> {
+		if( typeof this._refreshTimer == 'number' ) {
+			clearInterval(this._refreshTimer);
+			this._refreshTimer = undefined;
+		}
+		// this.#reader.cancel("WCAppInstance#_cleanup()");
+		return Promise.resolve();
+	}
+	
+	_byteCount : number = 0;
+	_lineCount : number = 0;
+	_eofReached : boolean = false;
+	_refreshTimer : number|undefined;
+	
+	_updateView() {
+		const now = new Date();
+		const textLines : string[] = [
+			now.toString(),
+			`Read ${this._byteCount} bytes`,
+			`Read ${this._lineCount} bytes`,
+			`EOF reached? ${this._eofReached}`,
+		];
+		this._ctx.setScene({
+			toRaster: (minSize, maxSize) => {
+				const idealSize = {
+					x: textLines.map(l => l.length).reduce((a,b) => Math.max(a,b), 0) + 4,
+					y: textLines.length + 2,
+				}
+				let rast = createUniformRaster(clampSize(idealSize, minSize, maxSize), " ", RED_BACKGROUND);
+				for( let i=0; i<textLines.length; ++i ) {
+					rast = drawTextToRaster(rast, {x:1, y:i+1}, textLines[i], RED_BACKGROUND);
+				}
+				return rast;
+			}
+		});
+	}
+	
+	async _run() : Promise<number> {
+		this._refreshTimer = setInterval(this._updateView.bind(this), 1000);
+		this._updateView();
+		
+		for await( const chunk of this.#input ) {
+			this._byteCount += chunk.length;
+			for( const byte of chunk ) {
+				if( byte == 0x0A ) ++this._lineCount;
+			}
+			this._updateView();
+			await sleep(500);
+		}
+		this._eofReached = true;
+		this._updateView();
+		await sleep(2000);
+		return 0;
+	}
+}
 
 //// Over-engineered process spawning stuff
 
@@ -369,6 +451,7 @@ const HELP_TEXT_LINES = [
 	"  help   ; print this help text and exit",
 	"  hello  ; Print some text, sleep a while, exit",
 	"  clock  ; Show a clock, updated every second",
+	"  wc     ; Read from stdin, print counts of bytes/lines read",
 ];
 
 interface TopArgs {
@@ -476,6 +559,11 @@ function parseMain(args:string[]) : Spawner<ProcLikeSpawnContext,Waitable<number
 				"Hello, world!",
 				"How's it going?"
 			], ctx),
+		}, outputMode);
+	} else if( topArgs.appName == "wc" ) {
+		return tuiAppToProcLike({
+			inputMode: 'none',
+			spawn: (ctx:PossiblyTUIAppContext) => new WCAppInstance(ctx),
 		}, outputMode);
 	} else if( topArgs.appName == "no-app-specified" ) {
 		return echoAndExitApp([], ["No app specified; try 'help'"], 1);
