@@ -6,7 +6,8 @@ import TextRaster2, { Style } from '../../lib/ts/termdraw/TextRaster2.ts';
 import TUIRenderStateManager from '../../lib/ts/termdraw/TUIRenderStateManager.ts';
 import { inputEvents } from '../../lib/ts/terminput/inputeventparser.ts';
 import { blitToRaster, createUniformRaster, drawTextToRaster, textRaster2ToDrawCommands, textRaster2ToLines } from '../../lib/ts/termdraw/textraster2utils.ts';
-import { BLUE_TEXT, RED_TEXT, RED_BACKGROUND, RESET_FORMATTING, toAnsi } from '../../lib/ts/termdraw/ansi.ts';
+import * as ansi from '../../lib/ts/termdraw/ansi.ts';
+import { toAnsi } from '../../lib/ts/termdraw/ansi.ts';
 import { iterateAndReturn, mergeAsyncIterables } from '../../lib/ts/_util/asynciterableutil.ts';
 import { Signal } from 'https://deno.land/x/tui@2.1.11/mod.ts';
 import { reset } from 'https://deno.land/std@0.165.0/fmt/colors.ts';
@@ -135,7 +136,7 @@ async function runTuiApp<Result>(
 	})() : (() => {
 		let currentScene : Rasterable = {
 			toRaster(size:Vec2D<number>) : TextRaster2 {
-				return createUniformRaster(size, " ", RESET_FORMATTING);
+				return createUniformRaster(size, " ", ansi.RESET_FORMATTING);
 			}
 		}
 		let outProm = Promise.resolve();
@@ -302,9 +303,9 @@ class EchoAppInstance extends DemoAppInstance {
 					x: this.#textLines.map(l => l.length).reduce((a,b) => Math.max(a,b), 0) + 4,
 					y: this.#textLines.length + 2,
 				}
-				let rast = createUniformRaster(clampSize(idealSize, minSize, maxSize), " ", RED_BACKGROUND);
+				let rast = createUniformRaster(clampSize(idealSize, minSize, maxSize), " ", ansi.RED_BACKGROUND);
 				for( let i=0; i<this.#textLines.length; ++i ) {
-					rast = drawTextToRaster(rast, {x:2, y:i+1}, this.#textLines[i], RED_BACKGROUND);
+					rast = drawTextToRaster(rast, {x:2, y:i+1}, this.#textLines[i], ansi.RED_BACKGROUND);
 				}
 				return rast;
 			}
@@ -342,9 +343,9 @@ class ClockAppInstance extends DemoAppInstance {
 					x: textLines.map(l => l.length).reduce((a,b) => Math.max(a,b), 0) + 4,
 					y: textLines.length + 2,
 				}
-				let rast = createUniformRaster(clampSize(idealSize, minSize, maxSize), " ", RED_BACKGROUND);
+				let rast = createUniformRaster(clampSize(idealSize, minSize, maxSize), " ", ansi.RED_BACKGROUND);
 				for( let i=0; i<textLines.length; ++i ) {
-					rast = drawTextToRaster(rast, {x:1, y:i+1}, textLines[i], RED_BACKGROUND);
+					rast = drawTextToRaster(rast, {x:1, y:i+1}, textLines[i], ansi.RED_BACKGROUND);
 				}
 				return rast;
 			}
@@ -397,18 +398,23 @@ class WCAppInstance extends DemoAppInstance {
 		this._ctx.setScene({
 			toRaster: (minSize, maxSize) => {
 				const now = new Date();
+				
+				const currentInputLine : [string,Style] =
+					this._eofReached ? ['Reached end of input!', ansi.BRIGHT_GREEN_TEXT] :
+					this._currentInputName == undefined ? ['', ansi.YELLOW_TEXT] :
+					[`Reading ${this._currentInputName}`, ansi.YELLOW_TEXT];
+				
 				const textLines : [string,Style][] = [
-					[now.toString()                    ,RESET_FORMATTING],
-					[this._currentInputName ? `Reading ${this._currentInputName}` : '', BLUE_TEXT],
-					[`Read ${this._byteCount} bytes`   ,RED_BACKGROUND  ],
-					[`Read ${this._lineCount} bytes`   ,RED_BACKGROUND  ],
-					[`EOF reached? ${this._eofReached}`,RED_BACKGROUND  ],
+					[now.toString()                    ,ansi.BRIGHT_WHITE_TEXT + ansi.RED_BACKGROUND],
+					currentInputLine,
+					[`Read ${this._byteCount} bytes`   ,ansi.FAINT_BLUE_TEXT  ],
+					[`Read ${this._lineCount} lines`   ,ansi.BOLD_BLUE_TEXT  ],
 				];
 				const idealSize = {
 					x: textLines.map(l => l.length).reduce((a,b) => Math.max(a,b), 0) + 4,
 					y: textLines.length + 2,
 				}
-				let rast = createUniformRaster(clampSize(idealSize, minSize, maxSize), " ", RED_BACKGROUND);
+				let rast = createUniformRaster(clampSize(idealSize, minSize, maxSize), " ", ansi.RED_BACKGROUND);
 				for( let i=0; i<textLines.length; ++i ) {
 					rast = drawTextToRaster(rast, {x:1, y:i+1}, textLines[i][0], textLines[i][1]);
 				}
