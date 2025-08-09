@@ -405,7 +405,7 @@ class WCAppInstance extends DemoAppInstance {
 					[`Reading ${this._currentInputName}`, ansi.YELLOW_TEXT];
 				
 				const textLines : [string,Style][] = [
-					[now.toString()                    ,ansi.BRIGHT_WHITE_TEXT + ansi.RED_BACKGROUND],
+					[now.toString()                    ,ansi.UNDERLINED + ansi.BRIGHT_WHITE_TEXT + ansi.RED_BACKGROUND], // For demonstration's sake
 					currentInputLine,
 					[`Read ${this._byteCount} bytes`   ,ansi.FAINT + ansi.BLUE_TEXT  ],
 					[`Read ${this._lineCount} lines`   ,ansi.BOLD  + ansi.BLUE_TEXT  ],

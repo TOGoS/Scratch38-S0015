@@ -392,3 +392,13 @@ Demonstrates an app that reads data from stdin
 ```sh
 deno run --check=all src\demo\ts\tuidemo3.ts wc - <README.md
 ```
+
+## 2025-08-09
+
+Some not-super-important updates, but progress nonetheless:
+- The 'x:EmitStyleChange' command now implies resetting formatting before the
+  new style is emitted, to avoid temporal leakage between style changes.
+- `tuidemo3 wc` subcommand now takes names of files to read from as arguments;
+  use "-" to mean 'standard input'
+- More colors defined in `ansi.ts`.  Concatenate to combine options.  e.g.
+  `ansi.UNDERLINED + ansi.BRIGHT_WHITE_TEXT + ansi.RED_BACKGROUND`
