@@ -6,7 +6,7 @@ import TextRaster2, { Style } from '../../lib/ts/termdraw/TextRaster2.ts';
 import TUIRenderStateManager from '../../lib/ts/termdraw/TUIRenderStateManager.ts';
 import { inputEvents } from '../../lib/ts/terminput/inputeventparser.ts';
 import { blitToRaster, createUniformRaster, drawTextToRaster, textRaster2ToDrawCommands, textRaster2ToLines } from '../../lib/ts/termdraw/textraster2utils.ts';
-import { RED_TEXT, RED_BACKGROUND, RESET_FORMATTING, toAnsi } from '../../lib/ts/termdraw/ansi.ts';
+import { BLUE_TEXT, RED_TEXT, RED_BACKGROUND, RESET_FORMATTING, toAnsi } from '../../lib/ts/termdraw/ansi.ts';
 import { iterateAndReturn, mergeAsyncIterables } from '../../lib/ts/_util/asynciterableutil.ts';
 import { Signal } from 'https://deno.land/x/tui@2.1.11/mod.ts';
 import { reset } from 'https://deno.land/std@0.165.0/fmt/colors.ts';
@@ -366,17 +366,15 @@ class ClockAppInstance extends DemoAppInstance {
 /**
  * App that demonstrates reading from stdin
  * 
- * TODO: Read from files specified on command-line
  * TODO: Use TBD component system to lay out/render
  */
 class WCAppInstance extends DemoAppInstance {
-	#input : AsyncIterable<Uint8Array>;
-	constructor(ctx:PossiblyTUIAppContext) {
+	#stdin : ReadableStream<Uint8Array>|undefined;
+	#inputNames : string[];
+	constructor(ctx:PossiblyTUIAppContext, inputNames:string[]) {
 		super(ctx);
-		if( !ctx.stdin ) {
-			throw new Error("No input stream");
-		}
-		this.#input = ctx.stdin;
+		this.#stdin = ctx.stdin;
+		this.#inputNames = inputNames;
 		this._handleRunResult(this._run());
 	}
 	
@@ -389,6 +387,7 @@ class WCAppInstance extends DemoAppInstance {
 		return Promise.resolve();
 	}
 	
+	_currentInputName : string|undefined;
 	_byteCount : number = 0;
 	_lineCount : number = 0;
 	_eofReached : boolean = false;
@@ -400,6 +399,7 @@ class WCAppInstance extends DemoAppInstance {
 				const now = new Date();
 				const textLines : [string,Style][] = [
 					[now.toString()                    ,RESET_FORMATTING],
+					[this._currentInputName ? `Reading ${this._currentInputName}` : '', BLUE_TEXT],
 					[`Read ${this._byteCount} bytes`   ,RED_BACKGROUND  ],
 					[`Read ${this._lineCount} bytes`   ,RED_BACKGROUND  ],
 					[`EOF reached? ${this._eofReached}`,RED_BACKGROUND  ],
@@ -421,14 +421,29 @@ class WCAppInstance extends DemoAppInstance {
 		this._refreshTimer = setInterval(this._updateView.bind(this), 1000);
 		this._updateView();
 		
-		for await( const chunk of this.#input ) {
-			this._byteCount += chunk.length;
-			for( const byte of chunk ) {
-				if( byte == 0x0A ) ++this._lineCount;
+		for( const inputName of this.#inputNames ) {
+			const readable : ReadableStream<Uint8Array>|undefined = await (inputName == '-' ? Promise.resolve(this.#stdin) : (Deno.open(inputName, {read:true})).then(f => f.readable));
+			if( readable == undefined ) {
+				this._ctx.writeOut(`Failed to open '${inputName}'`);
+				return 1;
 			}
+			this._currentInputName = inputName;
 			this._updateView();
 			await sleep(500);
+			try {
+				for await( const chunk of readable ) {
+					this._byteCount += chunk.length;
+					for( const byte of chunk ) {
+						if( byte == 0x0A ) ++this._lineCount;
+					}
+					this._updateView();
+					await sleep(500);
+				}
+			} finally {
+				readable.cancel();
+			}
 		}
+		this._currentInputName = '';
 		this._eofReached = true;
 		this._updateView();
 		await sleep(2000);
@@ -461,23 +476,33 @@ const HELP_TEXT_LINES = [
 
 interface TopArgs {
 	appName : string;
+	outputMode? : "screen"|"lines";
+	inputMode? : "none"|"push-key-events";
 	appArgs : string[];
 }
 
 function parseTopArgs(args:string[]) : TopArgs {
 	let appArgs : string[] = [];
 	let appName : string = "no-app-specified";
+	let outputMode : undefined|"screen"|"lines"         = undefined;
+	let inputMode  : undefined|"none"|"push-key-events" = undefined;
+	let m : RegExpExecArray|null;
 	for( let i=0; i<args.length; ++i ) {
 		if( args[i] == '--help' ) {
 			appName = 'help';
+		} else if( args[i] == '--capture-input' ) {
+			inputMode = "push-key-events";
+		} else if( (m = /^--output-mode=(screen|lines)$/.exec(args[i])) != null ) {
+			outputMode = m[1] as "screen"|"lines";
 		} else if( args[i].startsWith("-") ) {
 			appArgs.push(args[i]);
 		} else {
 			appName = args[i];
 			appArgs = appArgs.concat(args.slice(i+1));
+			break;
 		}
 	}
-	return { appName, appArgs };
+	return { appName, outputMode, inputMode, appArgs };
 }
 
 interface ProcLikeSpawnContext {
@@ -537,42 +562,37 @@ function echoAndExitApp(toStdout:string[], toStderr:string[], exitCode:number) :
 function parseMain(args:string[]) : Spawner<ProcLikeSpawnContext,Waitable<number>> {
 	const topArgs = parseTopArgs(args);
 	
-	let outputMode : "screen"|"lines" = "screen";
-	let requestedInputMode : "none"|"push-key-events" = "none";
-	for( const arg of topArgs.appArgs ) {
-		let m : RegExpExecArray|null;
-		if( arg == '--capture-input' ) {
-			requestedInputMode = "push-key-events";
-		} else if( (m = /^--output-mode=(screen|lines)$/.exec(arg)) != null ) {
-			outputMode = m[1] as "screen"|"lines";
-		} else if( arg == '-' ) {
-			// Means 'wc should read from stdin'.
-			// TODO: Allow apps to deal with their own arguments.
-		} else {
-			throw new Error(`Unrecognized argument: '${arg}'`);
-		}
-	}
-
 	if( topArgs.appName == "help" ) {
 		return echoAndExitApp([], HELP_TEXT_LINES, 0);
 	} else if( topArgs.appName == "clock" ) {
 		return tuiAppToProcLike({
-			inputMode: requestedInputMode,
+			inputMode: topArgs.inputMode ?? "none",
 			spawn: (ctx:PossiblyTUIAppContext)  => new ClockAppInstance(ctx),
-		}, outputMode);
+		}, topArgs.outputMode ?? "screen");
 	} else if( topArgs.appName == "hello" ) {
 		return tuiAppToProcLike({
-			inputMode: requestedInputMode,
+			inputMode: topArgs.inputMode ?? "none",
 			spawn: (ctx:PossiblyTUIAppContext) => new EchoAppInstance([
 				"Hello, world!",
 				"How's it going?"
 			], ctx),
-		}, outputMode);
+		}, topArgs.outputMode ?? "screen");
 	} else if( topArgs.appName == "wc" ) {
-		return tuiAppToProcLike({
-			inputMode: 'none',
-			spawn: (ctx:PossiblyTUIAppContext) => new WCAppInstance(ctx),
-		}, outputMode);
+		const inputFiles : string[] = [];
+			for( const arg of topArgs.appArgs ) {
+				let m : RegExpExecArray|null;
+				if( arg == '-' || !arg.startsWith("-") ) {
+					inputFiles.push(arg);
+					// Means 'wc should read from stdin'.
+					// TODO: Allow apps to deal with their own arguments.
+				} else {
+					throw new Error(`Unrecognized argument to 'wc': '${arg}'`);
+				}
+			}
+			return tuiAppToProcLike({
+				inputMode: 'none',
+				spawn: (ctx:PossiblyTUIAppContext) => new WCAppInstance(ctx, inputFiles),
+			}, topArgs.outputMode ?? "screen");
 	} else if( topArgs.appName == "no-app-specified" ) {
 		return echoAndExitApp([], ["No app specified; try 'help'"], 1);
 	} else {

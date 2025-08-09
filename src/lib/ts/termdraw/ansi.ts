@@ -3,6 +3,7 @@ import DrawCommand from './DrawCommand.ts';
 
 export const RESET_FORMATTING = "\x1b[0m";
 export const RED_TEXT = "\x1b[31m";
+export const BLUE_TEXT = "\x1b[34m";
 export const RED_BACKGROUND = "\x1b[41m";
 
 export const SHOW_CURSOR = `\x1b[?25h`;
@@ -38,8 +39,11 @@ export function toAnsi(dc:DrawCommand) : string {
 		case "x:EmitText": {
 			return ansiEscape(dc.text);
 		}
-		case "x:EmitLiteral": case "x:EmitStyleChange": {
+		case "x:EmitLiteral": {
 			return dc.sequence;
+		}
+		case "x:EmitStyleChange": {
+			return RESET_FORMATTING + dc.sequence;
 		}
 	}
 }
