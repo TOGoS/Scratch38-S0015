@@ -407,8 +407,8 @@ class WCAppInstance extends DemoAppInstance {
 				const textLines : [string,Style][] = [
 					[now.toString()                    ,ansi.BRIGHT_WHITE_TEXT + ansi.RED_BACKGROUND],
 					currentInputLine,
-					[`Read ${this._byteCount} bytes`   ,ansi.FAINT_BLUE_TEXT  ],
-					[`Read ${this._lineCount} lines`   ,ansi.BOLD_BLUE_TEXT  ],
+					[`Read ${this._byteCount} bytes`   ,ansi.FAINT + ansi.BLUE_TEXT  ],
+					[`Read ${this._lineCount} lines`   ,ansi.BOLD  + ansi.BLUE_TEXT  ],
 				];
 				const idealSize = {
 					x: textLines.map(l => l.length).reduce((a,b) => Math.max(a,b), 0) + 4,
