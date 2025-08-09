@@ -1,4 +1,12 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.0.13
+Date: 2025-08-09
+Additions:
+  - TextRaster2 - a more straightforward representation of rows of styled text
+  - tuiappframework3.ts provides some types and `runTuiApp` function for running apps
+    that run asynchronously and push rasters to a sink that is managed by the framework
+  - tuidemo3.ts - demonstrates tuiappframework3.ts for a few different apps
+---------------------------------------------------------------------------------------------------
 Version: 0.0.11
 Date: 2025-05-09
 Changes:

@@ -2,6 +2,20 @@
 
 Some Deno code for TUI...stuff.
 
+## TUIAppFramework3
+
+To run demonstration, try one of:
+- `deno run --check=all help`
+- `deno run --check=all hello`
+- `deno run --check=all clock`
+- `deno run --check=all --allow-read src\demo\ts\tuidemo3.ts wc README.md CHANGELOG.txt`
+- `deno run --check=all src\demo\ts\tuidemo3.ts wc -`
+  - This one reads data from stdin; recommendation is to pipe in a file
+  - You can also type text in but it will 'look messy' and you'll have
+    to manually send EOF (Ctrl+z on Windows, Ctrl+d on Unixen) or Ctrl+c to quit.
+
+## Other stuff
+
 For reading characters and escape codes as sent by terminals, use `toCharishes` from `escapeparser.ts`,
 which will give you an `AsyncIterable<Charish>`, where `Charish` is either a number (for a regular character)
 or an object representing the data contained in an escape sequence.

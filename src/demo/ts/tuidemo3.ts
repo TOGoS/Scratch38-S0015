@@ -226,6 +226,7 @@ const HELP_TEXT_LINES = [
 	"",
 	"Options:",
 	"  --capture-input ; Use 'raw mode'; application will parse key events",
+	"                  ; (use 'q' to quit)",
 	"  --output-mode=<mode>> ; Request the app operate with the given output mode",
 	"                        ; (some apps will ignore this)",
 	"",
