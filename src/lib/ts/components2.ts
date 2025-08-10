@@ -57,6 +57,8 @@ export interface PackedRasterable {
 	 * Inflate as desired to fill the given space;
 	 * result may be larger or smaller than the given region;
 	 * it is a suggestion.
+	 * 
+	 * TODO: Should probably just indicate a size, not 'bounds'
 	 */
 	fill(bounds : AABB2D<number>) : SizedRasterable
 }
@@ -278,14 +280,97 @@ export class PackedFlexRasterable implements PackedRasterable {
 		this.#children = children;
 	}
 	fill(bounds: AABB2D<number>): SizedRasterable {
-		// TODO: lay packed children out in rows or columns (depending on direction),
-		// wrapping when the total width or height overflows the bounds specified,
-		// always cramming at least one into each row.
-		// Then for each row, calculate the proper filled size of each child
-		// based on the height of the row/width of the column
-		// and remaining space, in proportion to its flexGrow.
-		// yaddah yaddah.
-		throw new Error("TODO: implement PackedFlexRasterable#fill");
+		const horiz = this.#direction == "rows";
+		
+		const rows = [];
+		const boxWidth  = bounds.x1 - bounds.x0;
+		const boxHeight = bounds.y1 - bounds.y0;
+		const boxLength = horiz ? boxWidth : boxHeight;
+		const boxDepth  = horiz ? boxHeight : boxWidth;
+
+		if( this.#children.length > 0 ) {
+			let currentRowLength = 0;
+			let currentRow : FlexChild<PackedRasterable>[] = [];
+			
+			// Lay packed children out in rows or columns (depending on direction),
+			// wrapping when the total width or height overflows the bounds specified,
+			// always cramming at least one into each row.
+			
+			// length / depth = main-axis / cross-axis (in flexbox terms)
+			for( const child of this.#children ) {
+				const cBounds = child.component.bounds;
+				const cWidth  = cBounds.x1 - cBounds.x0;
+				const cHeight = cBounds.y1 - cBounds.y0;
+				const cLength = horiz ? cWidth : cHeight;
+				// const cDepth  = horiz ? cHeight : cWidth;
+				const currentRowTentativeLength = currentRowLength + cLength;
+				if( currentRow.length == 0 || currentRowTentativeLength <= boxLength ) {
+					currentRow.push(child);
+					currentRowLength = currentRowTentativeLength;
+				} else {
+					rows.push(currentRow = [child]);
+					currentRowLength = cLength;
+				}
+			}
+		}
+		
+		const sizedChildren : {bounds:AABB2D<number>, component:SizedRasterable}[] = [];
+		
+		let across = 0;
+		for( const row of rows ) {
+			let along = 0;
+			let maxDepth = 0;
+			let totalLength = 0;
+			let totalShrink = 0;
+			let totalGrow = 0;
+			for( const child of row ) {
+				const cBounds = child.component.bounds;
+				const cWidth  = cBounds.x1 - cBounds.x0;
+				const cHeight = cBounds.y1 - cBounds.y0;
+				const cLength = horiz ? cWidth : cHeight;
+				const cDepth  = horiz ? cHeight : cWidth;
+				totalLength += cLength;
+				maxDepth = Math.max(maxDepth, cDepth);
+				totalShrink += child.flexShrink;
+				totalGrow   += child.flexGrow;
+			}
+			const leftoverLength = boxLength - totalLength;
+			if( leftoverLength < 0 ) throw new Error("TODO: Implement shrinking");
+			if( leftoverLength > 0 && totalGrow == 0 ) throw new Error("TODO: Handle case where totalGrow = 0");
+			// TODO: deal with case where we need to shrink/expand but totalGrow / totalShrink is 0 by spreading it to everyone
+			// TODO: Deal with 'have to shrink' case
+			for( const child of row ) {
+				const cBounds = child.component.bounds;
+				const cWidth  = cBounds.x1 - cBounds.x0;
+				const cHeight = cBounds.y1 - cBounds.y0;
+				const cLength = horiz ? cWidth : cHeight;
+				const filledLength = Math.round(cLength + leftoverLength * child.flexGrow / totalGrow);
+				const cX = horiz ? along : across;
+				const cY = horiz ? across : along;
+				const cFilledWidth  = horiz ? filledLength : maxDepth;
+				const cFilledHeight = horiz ? maxDepth : filledLength;
+				
+				// TODO: Watch out for rounding errors, lest we end up at along = not quite filledLength;
+				// maybe recalculate based on actual remaining space as we iterate through the children.
+				sizedChildren.push({
+					bounds: {
+						x0: cX, y0: cY,
+						x1: cX + cFilledWidth,
+						y1: cY + cFilledHeight,
+					},
+					component: child.component.fill({x0:0, y0:0, x1: cFilledWidth, y1: cFilledHeight})
+				});
+				along += filledLength;
+			}
+			
+			// Hmm: Might want to expand/shrink the rows, too!
+			across += maxDepth;
+		}
+		
+		// TODO: Define this; at this point the 'flexing' is done,
+		// so the result can be more generic.
+		// return new CompoundSizedRasterable(box size, sizedChildren);
+		throw new Error("TODO: Define CompoundSizedRasterable");
 	}
 }
 export class AbstractFlexRasterable implements AbstractRasterable {
