@@ -260,3 +260,62 @@ export class PaddingRasterable implements AbstractRasterable, PackedRasterable {
 
 // TODO: 'flex' rasterable, which lays children out in rows and/or columns,
 // similar to HTML/CSS flexbox
+
+type FlexDirection = "rows"|"columns";
+interface FlexChild<T> {
+	component: T;
+	flexShrink: number;
+	flexGrow: number;
+}
+
+export class PackedFlexRasterable implements PackedRasterable {
+	readonly bounds : AABB2D<number>;
+	readonly #children : FlexChild<PackedRasterable>[];
+	readonly #direction : FlexDirection;
+	constructor(direction:FlexDirection, bounds:AABB2D<number>, children:FlexChild<PackedRasterable>[]) {
+		this.bounds = bounds;
+		this.#direction = direction;
+		this.#children = children;
+	}
+	fill(bounds: AABB2D<number>): SizedRasterable {
+		// TODO: lay packed children out in rows or columns (depending on direction),
+		// wrapping when the total width or height overflows the bounds specified,
+		// always cramming at least one into each row.
+		// Then for each row, calculate the proper filled size of each child
+		// based on the height of the row/width of the column
+		// and remaining space, in proportion to its flexGrow.
+		// yaddah yaddah.
+		throw new Error("TODO: implement PackedFlexRasterable#fill");
+	}
+}
+export class AbstractFlexRasterable implements AbstractRasterable {
+	readonly #children : FlexChild<AbstractRasterable>[];
+	readonly #direction : FlexDirection;
+	constructor(direction:FlexDirection, children:FlexChild<AbstractRasterable>[]) {
+		this.#children = children;
+		this.#direction = direction;
+	}
+	pack(): PackedRasterable {
+		const packedChildren = this.#children.map(c => ({
+			component: c.component.pack(),
+			flexGrow: c.flexGrow,
+			flexShrink: c.flexShrink,
+		}));
+		let totalWidth = 0;
+		let totalHeight = 0;
+		if( this.#direction == "rows" ) {
+			for( const child of packedChildren ) {
+				const bounds = child.component.bounds;
+				totalWidth += bounds.x1 - bounds.x0;
+				totalHeight = Math.max(totalHeight, bounds.y1 - bounds.y0);
+			}
+		} else {
+			for( const child of packedChildren ) {
+				const bounds = child.component.bounds;
+				totalWidth  = Math.max(totalWidth, bounds.x1 - bounds.x0);
+				totalHeight += bounds.y1 - bounds.y0;
+			}
+		}
+		return new PackedFlexRasterable(this.#direction, {x0:0, y0:0, x1:totalWidth, y1:totalHeight}, packedChildren);
+	}
+}
