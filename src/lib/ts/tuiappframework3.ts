@@ -31,6 +31,7 @@ export interface PossiblyTUIAppContext {
 	//stdout : WritableStream<Uint8Array>;
 	//stderr : WritableStream<Uint8Array>;
 	writeOut(text:string) : Promise<void>;
+	/** Specify what should be drawn on the screen. */
 	setScene(scene:Rasterable) : void;
 }
 
