@@ -66,10 +66,14 @@ export interface RegionRasterable {
 }
 
 /**
- * A thing that is conceptually 'all layed out' and can be queried
- * for an image of part of itself
+ * A thing that is conceptually 'all layed out' internally
+ * and can be queried for an image of part of itself
  */
 export interface SizedRasterable extends RegionRasterable {
+	/**
+	 * 'Natural' bounds of the thing, for packing purposes.
+	 * Does not limit the area that can be queried for raster data!
+	 */
 	readonly bounds : AABB2D<number>;
 }
 
