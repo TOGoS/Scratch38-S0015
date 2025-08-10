@@ -214,14 +214,19 @@ class BorderedRasterable implements SizedRasterable {
 	}
 
 	toRaster(region: AABB2D<number>): TextRaster2 {
-		const b = this.borderWidth;
-		const innerRegion = {
-			x0: region.x0 + b, y0: region.y0 + b,
-			x1: region.x1 - b, y1: region.y1 - b,
-		};
 		const background = this.background.toRaster(region);
+		const innerBounds = this.inner.bounds;
+		const innerW = innerBounds.x1 - innerBounds.x0;
+		const innerH = innerBounds.y1 - innerBounds.y0;
+		const iX = Math.round((region.x0 + region.x1 - innerW) / 2);
+		const iY = Math.round((region.y0 + region.y1 - innerH) / 2);
+		const innerRegion = {
+			x0: iX, y0: iX,
+			x1: iX + innerW,
+			y1: iY + innerH,
+		};
 		const inner = this.inner.toRaster(innerRegion);
-		return blitToRaster(background, {x: b, y: b}, inner);
+		return blitToRaster(background, {x: iX - region.x0, y: iY - region.y0}, inner);
 	}
 }
 
