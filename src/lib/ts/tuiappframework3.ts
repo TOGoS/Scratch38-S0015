@@ -81,21 +81,32 @@ export type PossiblyTUIAppSpawner<Context,Instance,InputEvent> = {
 	spawn(context: Context) : Instance;
 };
 
+export interface TUIAppRunOpts {
+	outputMode: "screen"|"lines",
+	fallbackConsoleSize?: Vec2D<number>,
+}
+
 export async function runTuiApp<Result>(
 	spawner: PossiblyTUIAppSpawner<PossiblyTUIAppContext, Waitable<Result>, KeyEvent>,
 	ctx:{
 		stdin  : typeof Deno.stdin,
 		stdout : WritableStreamDefaultWriter
 	},
-	opts: {
-		outputMode: "screen"|"lines"
-	}
+	opts: TUIAppRunOpts
 ) : Promise<Result> {
 	const textEncoder = new TextEncoder();
 	
 	function getScreenSize() : Vec2D<number> {
-		const cs = Deno.consoleSize();
-		return { x: cs.columns, y: cs.rows };
+		try {
+			const cs = Deno.consoleSize();
+			return { x: cs.columns, y: cs.rows };
+		} catch( e ) {
+			if( opts.fallbackConsoleSize ) return opts.fallbackConsoleSize;
+			else {
+				console.error("No fallback console size!  We shall die!");
+				throw e;
+			}
+		}
 	}
 	
 	// Output manager provides a common interface to manage terminal output,

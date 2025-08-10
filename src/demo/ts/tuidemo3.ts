@@ -1,10 +1,12 @@
 import Vec2D from '../../lib/ts/termdraw/Vec2D.ts';
+import AABB2D from '../../lib/ts/termdraw/AABB2D.ts';
 
 import KeyEvent from '../../lib/ts/terminput/KeyEvent.ts';
-import { Style } from '../../lib/ts/termdraw/TextRaster2.ts';
+import TextRaster2, { Style } from '../../lib/ts/termdraw/TextRaster2.ts';
 import { createUniformRaster, drawTextToRaster } from '../../lib/ts/termdraw/textraster2utils.ts';
 import * as ansi from '../../lib/ts/termdraw/ansi.ts';
-import { AbstractAppInstance, PossiblyTUIAppContext, PossiblyTUIAppSpawner, runTuiApp, Waitable } from '../../lib/ts/tuiappframework3.ts';
+import { AbstractAppInstance, PossiblyTUIAppContext, PossiblyTUIAppSpawner, runTuiApp, TUIAppRunOpts, Waitable } from '../../lib/ts/tuiappframework3.ts';
+import { AbstractBorderRasterable, FixedRasterable, rasterizeAbstractRasterableToSize, rasterToSize, RegionRasterable } from '../../lib/ts/components2.ts';
 
 //// Misc helper functions
 
@@ -182,14 +184,23 @@ class WCAppInstance extends DemoAppInstance {
 					[`Read ${this._appState.lineCount} lines`   ,ansi.BOLD  + ansi.BLUE_TEXT  ],
 				];
 				const idealSize = {
-					x: textLines.map(l => l.length).reduce((a,b) => Math.max(a,b), 0) + 4,
+					x: textLines.map(l => l[0].length).reduce((a,b) => Math.max(a,b), 0),
 					y: textLines.length + 2,
 				}
-				let rast = createUniformRaster(clampSize(idealSize, minSize, maxSize), " ", ansi.RED_BACKGROUND);
+				let rast = createUniformRaster(idealSize, " ", ansi.RESET_FORMATTING);
 				for( let i=0; i<textLines.length; ++i ) {
-					rast = drawTextToRaster(rast, {x:1, y:i+1}, textLines[i][0], textLines[i][1]);
+					rast = drawTextToRaster(rast, {x:0, y:i}, textLines[i][0], textLines[i][1]);
 				}
-				return rast;
+				const border : RegionRasterable = {
+					toRaster(bounds:AABB2D<number>) : TextRaster2 {
+						return createUniformRaster({x: bounds.x1 - bounds.x0, y: bounds.y1 - bounds.y0}, " ", ansi.RED_BACKGROUND);
+					}
+				}
+				
+				const content = new FixedRasterable(rast);
+				const bordered = new AbstractBorderRasterable(content, 1, border);
+				
+				return rasterizeAbstractRasterableToSize(bordered, maxSize);
 			}
 		});
 	}
@@ -310,17 +321,15 @@ interface Spawner<C,R> {
 }
 
 function tuiAppToProcLike<R>(
-	app:PossiblyTUIAppSpawner<PossiblyTUIAppContext, Waitable<R>, KeyEvent>,
-	outputMode : "screen"|"lines"
+	app  : PossiblyTUIAppSpawner<PossiblyTUIAppContext, Waitable<R>, KeyEvent>,
+	opts : TUIAppRunOpts
 ) : Spawner<ProcLikeSpawnContext, Waitable<R>> {
 	return {
 		spawn(ctx:ProcLikeSpawnContext) : Waitable<R> {
 			const exitCodePromise = runTuiApp(app, {
 				stdin: ctx.stdin,
 				stdout: ctx.stdout.writable.getWriter()
-			}, {
-				outputMode
-			});
+			}, opts);
 			return {
 				wait() { return exitCodePromise }
 			};
@@ -356,13 +365,22 @@ function echoAndExitApp(toStdout:string[], toStderr:string[], exitCode:number) :
 function parseMain(args:string[]) : Spawner<ProcLikeSpawnContext,Waitable<number>> {
 	const topArgs = parseTopArgs(args);
 	
+	const runOpts = {
+		// In case Deno.screenSize() doesn't work
+		// Hmm: Maybe the whole Deno.consoleSizE() + fallback should be passed in as a callback
+		fallbackConsoleSize: {x: 40, y: 20}
+	};
+	
 	if( topArgs.appName == "help" ) {
 		return echoAndExitApp([], HELP_TEXT_LINES, 0);
 	} else if( topArgs.appName == "clock" ) {
 		return tuiAppToProcLike({
 			inputMode: topArgs.inputMode ?? "none",
 			spawn: (ctx:PossiblyTUIAppContext)  => new ClockAppInstance(ctx),
-		}, topArgs.outputMode ?? "screen");
+		}, {
+			...runOpts,
+			outputMode: topArgs.outputMode ?? "screen"
+		});
 	} else if( topArgs.appName == "hello" ) {
 		return tuiAppToProcLike({
 			inputMode: topArgs.inputMode ?? "none",
@@ -370,22 +388,31 @@ function parseMain(args:string[]) : Spawner<ProcLikeSpawnContext,Waitable<number
 				"Hello, world!",
 				"How's it going?"
 			], ctx),
-		}, topArgs.outputMode ?? "screen");
+		}, {
+			...runOpts,
+			outputMode: topArgs.outputMode ?? "screen"
+		});
 	} else if( topArgs.appName == "wc" ) {
 		const inputFiles : string[] = [];
-			for( const arg of topArgs.appArgs ) {
-				if( arg == '-' || !arg.startsWith("-") ) {
-					inputFiles.push(arg);
-					// Means 'wc should read from stdin'.
-					// TODO: Allow apps to deal with their own arguments.
-				} else {
-					throw new Error(`Unrecognized argument to 'wc': '${arg}'`);
-				}
+		let usingStdin = false;
+		for( const arg of topArgs.appArgs ) {
+			if( arg == '-' ) {
+				usingStdin = true;
+			} else if( !arg.startsWith("-") ) {
+				inputFiles.push(arg);
+				// Means 'wc should read from stdin'.
+				// TODO: Allow apps to deal with their own arguments.
+			} else {
+				throw new Error(`Unrecognized argument to 'wc': '${arg}'`);
 			}
-			return tuiAppToProcLike({
-				inputMode: 'none',
-				spawn: (ctx:PossiblyTUIAppContext) => new WCAppInstance(ctx, inputFiles),
-			}, topArgs.outputMode ?? "screen");
+		}
+		return tuiAppToProcLike({
+			inputMode: usingStdin || topArgs.inputMode == undefined ? 'none' : topArgs.inputMode,
+			spawn: (ctx:PossiblyTUIAppContext) => new WCAppInstance(ctx, inputFiles),
+		}, {
+			...runOpts,
+			outputMode: topArgs.outputMode ?? "screen"
+		});
 	} else if( topArgs.appName == "no-app-specified" ) {
 		return echoAndExitApp([], ["No app specified; try 'help'"], 1);
 	} else {
