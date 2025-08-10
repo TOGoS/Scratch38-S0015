@@ -127,23 +127,23 @@ export class FixedRasterable implements AbstractRasterable, PackedRasterable, Si
 }
 
 export class AbstractBorderRasterable implements AbstractRasterable {
-	private inner: AbstractRasterable;
-	private borderWidth: number;
-	private background: RegionRasterable;
+	readonly #inner: AbstractRasterable;
+	readonly #borderWidth: number;
+	readonly #background: RegionRasterable;
 	
 	constructor(
 		inner: AbstractRasterable,
 		borderWidth: number,
 		background: RegionRasterable
 	) {
-		this.inner = inner;
-		this.borderWidth = borderWidth;
-		this.background = background;
+		this.#inner = inner;
+		this.#borderWidth = borderWidth;
+		this.#background = background;
 	}
 	
 	pack(): PackedRasterable {
-		const packedInner = this.inner.pack();
-		const b = this.borderWidth;
+		const packedInner = this.#inner.pack();
+		const b = this.#borderWidth;
 		const bounds = {
 			x0: packedInner.bounds.x0 - b,
 			y0: packedInner.bounds.y0 - b,
@@ -152,8 +152,8 @@ export class AbstractBorderRasterable implements AbstractRasterable {
 		};
 		return new PackedBorderRasterable(
 			packedInner,
-			this.borderWidth,
-			this.background,
+			this.#borderWidth,
+			this.#background,
 			bounds
 		);
 	}
@@ -161,9 +161,9 @@ export class AbstractBorderRasterable implements AbstractRasterable {
 
 class PackedBorderRasterable implements PackedRasterable {
 	readonly bounds: AABB2D<number>;
-	private packedInner: PackedRasterable;
-	private borderWidth: number;
-	private background: RegionRasterable;
+	readonly #packedInner: PackedRasterable;
+	readonly #borderWidth: number;
+	readonly #background: RegionRasterable;
 	
 	constructor(
 		packedInner: PackedRasterable,
@@ -171,35 +171,35 @@ class PackedBorderRasterable implements PackedRasterable {
 		background: RegionRasterable,
 		bounds: AABB2D<number>
 	) {
-		this.packedInner = packedInner;
-		this.borderWidth = borderWidth;
-		this.background = background;
+		this.#packedInner = packedInner;
+		this.#borderWidth = borderWidth;
+		this.#background = background;
 		this.bounds = bounds;
 	}
 	
 	fill(bounds: AABB2D<number>): SizedRasterable {
-		const b = this.borderWidth;
+		const b = this.#borderWidth;
 		const innerBounds = {
 			x0: bounds.x0 + b,
 			y0: bounds.y0 + b,
 			x1: bounds.x1 - b,
 			y1: bounds.y1 - b,
 		};
-		const filledInner = this.packedInner.fill(innerBounds);
+		const filledInner = this.#packedInner.fill(innerBounds);
 		return new BorderedRasterable(
 			filledInner,
 			bounds,
-			this.borderWidth,
-			this.background
+			this.#borderWidth,
+			this.#background
 		);
 	}
 }
 
 class BorderedRasterable implements SizedRasterable {
 	readonly bounds: AABB2D<number>;
-	private inner: SizedRasterable;
-	private borderWidth: number;
-	private background : RegionRasterable;
+	readonly #inner: SizedRasterable;
+	readonly #borderWidth: number;
+	readonly #background : RegionRasterable;
 
 	constructor(
 		inner: SizedRasterable,
@@ -207,15 +207,15 @@ class BorderedRasterable implements SizedRasterable {
 		borderWidth: number,
 		background: RegionRasterable
 	) {
-		this.inner = inner;
+		this.#inner = inner;
 		this.bounds = bounds;
-		this.borderWidth = borderWidth;
-		this.background = background;
+		this.#borderWidth = borderWidth;
+		this.#background = background;
 	}
-
+	
 	toRaster(region: AABB2D<number>): TextRaster2 {
-		const background = this.background.toRaster(region);
-		const innerBounds = this.inner.bounds;
+		const background = this.#background.toRaster(region);
+		const innerBounds = this.#inner.bounds;
 		const innerW = innerBounds.x1 - innerBounds.x0;
 		const innerH = innerBounds.y1 - innerBounds.y0;
 		const iX = Math.round((this.bounds.x0 + this.bounds.x1 - innerW) / 2);
@@ -225,7 +225,7 @@ class BorderedRasterable implements SizedRasterable {
 			x1: iX + innerW,
 			y1: iY + innerH,
 		};
-		const inner = this.inner.toRaster(innerRegion);
+		const inner = this.#inner.toRaster(innerRegion);
 		return blitToRaster(background, {x: iX - region.x0, y: iY - region.y0}, inner);
 	}
 }
@@ -233,10 +233,9 @@ class BorderedRasterable implements SizedRasterable {
 const ZERO_BOUNDS = {x0:0, y0:0, x1:0, y1: 0};
 
 export class PaddingRasterable implements AbstractRasterable, PackedRasterable {
-	private background: RegionRasterable;
-
+	readonly #background: RegionRasterable;
 	constructor(background: RegionRasterable) {
-		this.background = background;
+		this.#background = background;
 	}
 	get bounds() { return ZERO_BOUNDS; }
 	pack(): PackedRasterable {
@@ -245,7 +244,7 @@ export class PaddingRasterable implements AbstractRasterable, PackedRasterable {
 	fill(bounds: AABB2D<number>): SizedRasterable {
 		return {
 			bounds,
-			toRaster: this.background.toRaster.bind(this.background),
+			toRaster: this.#background.toRaster.bind(this.#background),
 		};
 	}
 }
