@@ -129,6 +129,14 @@ class ClockAppInstance extends DemoAppInstance {
  * 
  * TODO: Use TBD component system to lay out/render
  */
+
+interface WCAppState {
+	currentInputName : string|undefined;
+	byteCount : number;
+	lineCount : number;
+	status : "unstarted"|"reading"|"done";
+}
+
 class WCAppInstance extends DemoAppInstance {
 	#stdin : ReadableStream<Uint8Array>|undefined;
 	#inputNames : string[];
@@ -148,10 +156,13 @@ class WCAppInstance extends DemoAppInstance {
 		return Promise.resolve();
 	}
 	
-	_currentInputName : string|undefined;
-	_byteCount : number = 0;
-	_lineCount : number = 0;
-	_eofReached : boolean = false;
+	_appState : WCAppState = {
+		status: "unstarted",
+		currentInputName: undefined,
+		byteCount: 0,
+		lineCount: 0,
+	};
+	
 	_refreshTimer : number|undefined;
 	
 	_updateView() {
@@ -160,15 +171,15 @@ class WCAppInstance extends DemoAppInstance {
 				const now = new Date();
 				
 				const currentInputLine : [string,Style] =
-					this._eofReached ? ['Reached end of input!', ansi.BRIGHT_GREEN_TEXT] :
-					this._currentInputName == undefined ? ['', ansi.YELLOW_TEXT] :
-					[`Reading ${this._currentInputName}`, ansi.YELLOW_TEXT];
+					this._appState.status == "done" ? ['Reached end of input!', ansi.BRIGHT_GREEN_TEXT] :
+					this._appState.status == "unstarted" ? ['', ansi.YELLOW_TEXT] :
+					[`Reading ${this._appState.currentInputName}`, ansi.YELLOW_TEXT];
 				
 				const textLines : [string,Style][] = [
 					[now.toString()                    ,ansi.UNDERLINED + ansi.BRIGHT_WHITE_TEXT + ansi.RED_BACKGROUND], // For demonstration's sake
 					currentInputLine,
-					[`Read ${this._byteCount} bytes`   ,ansi.FAINT + ansi.BLUE_TEXT  ],
-					[`Read ${this._lineCount} lines`   ,ansi.BOLD  + ansi.BLUE_TEXT  ],
+					[`Read ${this._appState.byteCount} bytes`   ,ansi.FAINT + ansi.BLUE_TEXT  ],
+					[`Read ${this._appState.lineCount} lines`   ,ansi.BOLD  + ansi.BLUE_TEXT  ],
 				];
 				const idealSize = {
 					x: textLines.map(l => l.length).reduce((a,b) => Math.max(a,b), 0) + 4,
@@ -183,6 +194,14 @@ class WCAppInstance extends DemoAppInstance {
 		});
 	}
 	
+	_patchState(patch : Partial<WCAppState>) {
+		this._appState = {
+			...this._appState,
+			...patch
+		};
+		this._updateView();
+	}
+	
 	async _run() : Promise<number> {
 		this._refreshTimer = setInterval(this._updateView.bind(this), 1000);
 		this._updateView();
@@ -193,26 +212,34 @@ class WCAppInstance extends DemoAppInstance {
 				this._ctx.writeOut(`Failed to open '${inputName}'`);
 				return 1;
 			}
-			this._currentInputName = inputName;
-			this._updateView();
+			this._patchState({
+				status: "reading",
+				currentInputName: inputName,
+			});
 			await sleep(500);
 			try {
 				for await( const chunk of readable ) {
-					this._byteCount += chunk.length;
+					const byteCount = this._appState.byteCount + chunk.length;
+					let lineCount = this._appState.lineCount;
 					for( const byte of chunk ) {
-						if( byte == 0x0A ) ++this._lineCount;
+						if( byte == 0x0A ) ++lineCount;
 					}
-					this._updateView();
+					this._patchState({
+						lineCount,
+						byteCount
+					});
 					await sleep(500);
 				}
 			} finally {
 				readable.cancel();
 			}
 		}
-		this._currentInputName = '';
-		this._eofReached = true;
-		this._updateView();
-		await sleep(2000);
+		await sleep(1000);
+		this._patchState({
+			currentInputName: undefined,
+			status: "done"
+		})
+		await sleep(1000);
 		return 0;
 	}
 }
