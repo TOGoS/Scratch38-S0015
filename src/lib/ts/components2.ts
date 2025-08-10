@@ -57,10 +57,8 @@ export interface PackedRasterable {
 	 * Inflate as desired to fill the given space;
 	 * result may be larger or smaller than the given region;
 	 * it is a suggestion.
-	 * 
-	 * TODO: Should probably just indicate a size, not 'bounds'
 	 */
-	fill(bounds : AABB2D<number>) : SizedRasterable
+	fill(size : Vec2D<number>) : SizedRasterable
 }
 
 export interface RegionRasterable {
@@ -97,11 +95,7 @@ export function rasterizeRasterableToSize(rasterable:SizedRasterable, targetSize
 }
 
 export function rasterizePackedRasterableToSize(packrast:PackedRasterable, targetSize:Vec2D<number>) : TextRaster2 {
-	const targetBounds = {
-		x0: 0, y0: 0,
-		x1: targetSize.x, y1: targetSize.y
-	};
-	return rasterizeRasterableToSize(packrast.fill(targetBounds), targetSize);
+	return rasterizeRasterableToSize(packrast.fill(targetSize), targetSize);
 }
 
 export function rasterizeAbstractRasterableToSize(abstrast:AbstractRasterable, targetSize:Vec2D<number>) : TextRaster2 {
@@ -129,7 +123,7 @@ export class FixedRasterable implements AbstractRasterable, PackedRasterable, Si
 	get bounds() : AABB2D<number> {
 		return this.#bounds;
 	}
-	fill(_bounds: AABB2D<number>): SizedRasterable {
+	fill(_size: Vec2D<number>): SizedRasterable {
 		return this;
 	}
 	toRaster(_region: AABB2D<number>) : TextRaster2 {
@@ -188,18 +182,16 @@ class PackedBorderRasterable implements PackedRasterable {
 		this.bounds = bounds;
 	}
 	
-	fill(bounds: AABB2D<number>): SizedRasterable {
+	fill(size: Vec2D<number>): SizedRasterable {
 		const b = this.#borderWidth;
-		const innerBounds = {
-			x0: bounds.x0 + b,
-			y0: bounds.y0 + b,
-			x1: bounds.x1 - b,
-			y1: bounds.y1 - b,
+		const innerSize = {
+			x: size.x - b*2,
+			y: size.y - b*2,
 		};
-		const filledInner = this.#packedInner.fill(innerBounds);
+		const filledInner = this.#packedInner.fill(innerSize);
 		return new BorderedRasterable(
 			filledInner,
-			bounds,
+			size,
 			this.#borderWidth,
 			this.#background
 		);
@@ -214,12 +206,12 @@ class BorderedRasterable implements SizedRasterable {
 
 	constructor(
 		inner: SizedRasterable,
-		bounds: AABB2D<number>,
+		size: Vec2D<number>,
 		borderWidth: number,
 		background: RegionRasterable
 	) {
 		this.#inner = inner;
-		this.bounds = bounds;
+		this.bounds = {x0:0, y0:0, x1:size.x, y1:size.y};
 		this.#borderWidth = borderWidth;
 		this.#background = background;
 	}
@@ -252,9 +244,9 @@ export class PaddingRasterable implements AbstractRasterable, PackedRasterable {
 	pack(): PackedRasterable {
 		return this;
 	}
-	fill(bounds: AABB2D<number>): SizedRasterable {
+	fill(size: Vec2D<number>): SizedRasterable {
 		return {
-			bounds,
+			bounds: {x0:0, y0: 0, x1: size.x, y1: size.y},
 			toRaster: this.#background.toRaster.bind(this.#background),
 		};
 	}
@@ -279,12 +271,12 @@ export class PackedFlexRasterable implements PackedRasterable {
 		this.#direction = direction;
 		this.#children = children;
 	}
-	fill(bounds: AABB2D<number>): SizedRasterable {
+	fill(size: Vec2D<number>): SizedRasterable {
 		const horiz = this.#direction == "rows";
 		
 		const rows = [];
-		const boxWidth  = bounds.x1 - bounds.x0;
-		const boxHeight = bounds.y1 - bounds.y0;
+		const boxWidth  = size.x;
+		const boxHeight = size.y;
 		const boxLength = horiz ? boxWidth : boxHeight;
 		const boxDepth  = horiz ? boxHeight : boxWidth;
 
@@ -358,7 +350,7 @@ export class PackedFlexRasterable implements PackedRasterable {
 						x1: cX + cFilledWidth,
 						y1: cY + cFilledHeight,
 					},
-					component: child.component.fill({x0:0, y0:0, x1: cFilledWidth, y1: cFilledHeight})
+					component: child.component.fill({x: cFilledWidth, y: cFilledHeight})
 				});
 				along += filledLength;
 			}
