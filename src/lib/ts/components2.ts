@@ -43,6 +43,15 @@ export interface AbstractRasterable {
  * a differently-sized space
  */
 export interface PackedRasterable {
+	/**
+	 * Bounding box of this object, relative to its own origin,
+	 * which is usually arbirary and unimportant
+	 * (but maybe not always, which is why this isn't just a Vec2D
+	 * with the origin implied to be in the top-left corner).
+	 * i.e. the bounds oc a child element are *not*
+	 * relative to any ancestors' coordinate system!
+	 * Parents know where their children are, not the other way around.
+	 */
 	readonly bounds : AABB2D<number>;
 	/**
 	 * Inflate as desired to fill the given space;
