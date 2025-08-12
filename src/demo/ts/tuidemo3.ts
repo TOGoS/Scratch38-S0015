@@ -6,7 +6,7 @@ import TextRaster2, { Style } from '../../lib/ts/termdraw/TextRaster2.ts';
 import { createUniformRaster, drawTextToRaster, textToRaster } from '../../lib/ts/termdraw/textraster2utils.ts';
 import * as ansi from '../../lib/ts/termdraw/ansi.ts';
 import { AbstractAppInstance, PossiblyTUIAppContext, PossiblyTUIAppSpawner, runTuiApp, TUIAppRunOpts, Waitable } from '../../lib/ts/tuiappframework3.ts';
-import { AbstractBorderRasterable, AbstractFlexRasterable, AbstractRasterable, FixedRasterable, makeSolidGenerator, rasterizeAbstractRasterableToSize, rasterToSize, RegionRasterable } from '../../lib/ts/components2.ts';
+import { AbstractBorderRasterable, AbstractFlexRasterable, AbstractRasterable, FixedRasterable, makeBorderedAbstractRasterable, makeSolidGenerator, rasterizeAbstractRasterableToSize, rasterToSize, RegionRasterable } from '../../lib/ts/components2.ts';
 import { PackedFlexRasterable } from '../../lib/ts/components2.ts';
 
 //// Misc helper functions
@@ -192,14 +192,9 @@ class WCAppInstance extends DemoAppInstance {
 				for( let i=0; i<textLines.length; ++i ) {
 					rast = drawTextToRaster(rast, {x:0, y:i}, textLines[i][0], textLines[i][1]);
 				}
-				const border : RegionRasterable = {
-					toRaster(bounds:AABB2D<number>) : TextRaster2 {
-						return createUniformRaster({x: bounds.x1 - bounds.x0, y: bounds.y1 - bounds.y0}, " ", ansi.RED_BACKGROUND);
-					}
-				}
-				
+				const border = makeSolidGenerator(" ", ansi.RED_BACKGROUND);
 				const content = new FixedRasterable(rast);
-				const bordered = new AbstractBorderRasterable(content, 1, border);
+				const bordered = makeBorderedAbstractRasterable(border, 1, content);
 				
 				return rasterizeAbstractRasterableToSize(bordered, maxSize);
 			}
@@ -256,8 +251,15 @@ class WCAppInstance extends DemoAppInstance {
 	}
 }
 
+const fixedSpace = new FixedRasterable(textToRaster(" ", ""));
+const flexySpace = makeSolidGenerator(" ", "");
+
 function mkTextRasterable(spans:{text:string, style:Style}[]) : AbstractRasterable {
 	return new AbstractFlexRasterable("rows", makeSolidGenerator(" ",ansi.BLACK_BACKGROUND), [
+		{
+			component: fixedSpace,
+			flexGrow: 0, flexShrink: 0
+		},
 		...spans.map(span => {
 			const rast = textToRaster(span.text, span.style);
 			return {
@@ -267,10 +269,18 @@ function mkTextRasterable(spans:{text:string, style:Style}[]) : AbstractRasterab
 			}
 		}),
 		{
-			component: makeSolidGenerator(" ", ansi.BLACK_BACKGROUND),
+			component: fixedSpace,
+			flexGrow: 0, flexShrink: 0
+		},
+		{
+			component: flexySpace,
 			flexGrow: 1, flexShrink: 1
 		}
 	]); // Maybe add a padding one at the end
+}
+
+function simpleBorder(char:string, style:string, interior:AbstractRasterable) : AbstractRasterable {
+	return makeBorderedAbstractRasterable(makeSolidGenerator(char, style), 1, interior)
 }
 
 class BoxesAppInstance extends DemoAppInstance {
@@ -282,14 +292,14 @@ class BoxesAppInstance extends DemoAppInstance {
 					{text:"Screen size: ", style:ansi.WHITE_TEXT},
 					{text:maxSize.x +" x " +maxSize.y, style:ansi.BRIGHT_WHITE_TEXT},
 				]);
+				const border = makeSolidGenerator(" ", ansi.RED_BACKGROUND);
 				const treeBg = makeSolidGenerator(" ", ansi.BLUE_BACKGROUND);
-				const tree = new AbstractFlexRasterable("columns", treeBg, [
-					{component: sizeSpan, flexGrow: 0, flexShrink: 0},
+				const tree = makeBorderedAbstractRasterable(border, 1, new AbstractFlexRasterable("columns", treeBg, [
+					{component: simpleBorder("#", ansi.WHITE_TEXT, sizeSpan), flexGrow: 0, flexShrink: 0},
 					// TODO: Instead of solid, make boxes
-					{component: makeSolidGenerator("2", ansi.RED_TEXT), flexGrow: 1, flexShrink: 0},
-					{component: makeSolidGenerator("3", ansi.GREEN_TEXT), flexGrow: 1, flexShrink: 0},
-					
-				]);
+					{component: simpleBorder("2", ansi.BOLD+ansi.RED_TEXT, makeSolidGenerator("2", ansi.RED_TEXT)), flexGrow: 1, flexShrink: 0},
+					{component: simpleBorder("3", ansi.BOLD+ansi.GREEN_TEXT, makeSolidGenerator("3", ansi.GREEN_TEXT)), flexGrow: 1, flexShrink: 0},
+				]));
 				return rasterizeAbstractRasterableToSize(tree, maxSize);
 			}
 		})
