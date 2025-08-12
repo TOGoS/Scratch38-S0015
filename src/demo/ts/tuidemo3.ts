@@ -288,14 +288,22 @@ class BoxesAppInstance extends DemoAppInstance {
 		super(ctx);
 		ctx.setScene({
 			toRaster(minSize, maxSize) {
+				const border = makeSolidGenerator(" ", ansi.RED_BACKGROUND);
+				const treeBg = makeSolidGenerator(" ", ansi.BLUE_BACKGROUND);
+				
+				const welcomeSpan = mkTextRasterable([
+					{text:"Welcome to boxes!", style:ansi.FAINT+ansi.YELLOW_TEXT},
+				])
 				const sizeSpan = mkTextRasterable([
 					{text:"Screen size: ", style:ansi.WHITE_TEXT},
 					{text:maxSize.x +" x " +maxSize.y, style:ansi.BRIGHT_WHITE_TEXT},
 				]);
-				const border = makeSolidGenerator(" ", ansi.RED_BACKGROUND);
-				const treeBg = makeSolidGenerator(" ", ansi.BLUE_BACKGROUND);
+				const texto = new AbstractFlexRasterable("columns", treeBg, [
+					{component: welcomeSpan, flexGrow: 0, flexShrink: 1},
+					{component: sizeSpan   , flexGrow: 0, flexShrink: 1},
+				]);
 				const tree = makeBorderedAbstractRasterable(border, 1, new AbstractFlexRasterable("columns", treeBg, [
-					{component: simpleBorder("#", ansi.WHITE_TEXT, sizeSpan), flexGrow: 0, flexShrink: 0},
+					{component: simpleBorder("#", ansi.WHITE_TEXT, texto), flexGrow: 0, flexShrink: 0},
 					// TODO: Instead of solid, make boxes
 					{component: simpleBorder("2", ansi.BOLD+ansi.RED_TEXT  , makeSolidGenerator("2", ansi.RED_TEXT  )), flexGrow: 1, flexShrink: 0},
 					{component: simpleBorder("3", ansi.BOLD+ansi.GREEN_TEXT, makeSolidGenerator("3", ansi.GREEN_TEXT)), flexGrow: 1, flexShrink: 0},
