@@ -354,7 +354,7 @@ export class PackedFlexRasterable implements PackedRasterable {
 				totalGrow   += child.flexGrow;
 			}
 			const leftoverLength = boxLength - totalLength;
-			if( leftoverLength < 0 ) throw new Error("TODO: Implement shrinking");
+			// if( leftoverLength < 0 ) throw new Error("TODO: Implement shrinking");
 			if( leftoverLength > 0 && totalGrow == 0 ) totalGrow = 1; // If nothing wants to grow, fine.
 			// TODO: Deal with 'have to shrink' case
 			for( let c=0; c<row.length; ++c ) {
