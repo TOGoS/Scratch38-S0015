@@ -37,13 +37,22 @@ export interface AbstractRasterable {
 	pack() : PackedRasterable;
 }
 
+export interface RegionRasterableGenerator {
+	/**
+	 * Generate a SizedRasterable that fills the given space;
+	 * result may be larger or smaller than the given region
+	 * and positioned differently; area is just a suggestion.
+	 */
+	generateForRegion(area : AABB2D<number>) : SizedRasterable
+}
+
 export interface SizedRasterableGenerator {
 	/**
 	 * Generate a SizedRasterable that fills the given space;
 	 * result may be larger or smaller than the given region;
 	 * it is a suggestion.
 	 */
-	fill(size : Vec2D<number>) : SizedRasterable
+	generateForSize(size : Vec2D<number>) : SizedRasterable
 }
 
 /**
@@ -92,6 +101,13 @@ export interface SizedRasterable extends RegionRasterable {
 export function boundsToSize(aabb:AABB2D<number>) : Vec2D<number> {
 	return {x: aabb.x1 - aabb.x0, y: aabb.y1 - aabb.y0 };
 }
+/**
+ * Convert size to bounds for cases where the position
+ * of the bounding box doesn't matter (i.e. usually!)
+ */
+export function sizeToBounds(size:Vec2D<number>) : AABB2D<number> {
+	return {x0: 0, y0: 0, x1: size.x, y1: size.y};
+}
 
 export function rasterToSize(raster:TextRaster2, targetSize:Vec2D<number>) : TextRaster2 {
 	if( raster.size.x == targetSize.x && raster.size.y == targetSize.y ) return raster;
@@ -116,7 +132,7 @@ export function rasterizeRasterableToSize(rasterable:SizedRasterable, targetSize
 }
 
 export function rasterizePackedRasterableToSize(packrast:PackedRasterable, targetSize:Vec2D<number>) : TextRaster2 {
-	return rasterizeRasterableToSize(packrast.fill(targetSize), targetSize);
+	return rasterizeRasterableToSize(packrast.generateForSize(targetSize), targetSize);
 }
 
 export function rasterizeAbstractRasterableToSize(abstrast:AbstractRasterable, targetSize:Vec2D<number>) : TextRaster2 {
@@ -138,7 +154,7 @@ function validateSize(size:Vec2D<number>) {
  * Rasterable that makes no effort to conform to any given size,
  * and packs to the size of the raster.
  */
-export class FixedRasterable implements AbstractRasterable, PackedRasterable, SizedRasterable {
+export class FixedRasterable implements AbstractRasterable, PackedRasterable, SizedRasterable, RegionRasterableGenerator {
 	#raster : TextRaster2;
 	#bounds : AABB2D<number>;
 	constructor(raster:TextRaster2) {
@@ -151,7 +167,10 @@ export class FixedRasterable implements AbstractRasterable, PackedRasterable, Si
 	get bounds() : AABB2D<number> {
 		return this.#bounds;
 	}
-	fill(_size: Vec2D<number>): SizedRasterable {
+	generateForSize(_size: Vec2D<number>): SizedRasterable {
+		return this;
+	}
+	generateForRegion(_area: AABB2D<number>): SizedRasterable {
 		return this;
 	}
 	toRaster(_region: AABB2D<number>) : TextRaster2 {
@@ -210,24 +229,21 @@ class PackedBorderRasterable implements PackedRasterable {
 		this.bounds = bounds;
 	}
 	
-	fill(size: Vec2D<number>): SizedRasterable {
+	generateForSize(size : Vec2D<number>): SizedRasterable {
 		const b = this.#borderWidth;
-		const innerSize = {
-			x: size.x - b*2,
-			y: size.y - b*2,
+		const bg = this.#backgroundGenerator.generateForSize(size);
+		const innerBounds = {
+			x0: bg.bounds.x0 + b,
+			y0: bg.bounds.y0 + b,
+			x1: bg.bounds.x1 - b,
+			y1: bg.bounds.y1 - b,
 		};
-		const bg = this.#backgroundGenerator.fill(size);
-		const filledInner = this.#packedInner.fill(innerSize);
+		const filledInner = this.#packedInner.generateForSize(boundsToSize(innerBounds));
 		return new SizedCompoundRasterable(
 			bg,
 			[
 				{
-					bounds: {
-						x0: bg.bounds.x0 + b,
-						y0: bg.bounds.y0 + b,
-						x1: bg.bounds.x1 - b,
-						y1: bg.bounds.y1 - b,
-					},
+					bounds: innerBounds,
 					component: filledInner
 				}
 			]
@@ -275,7 +291,7 @@ export class PaddingRasterable implements AbstractRasterable, PackedRasterable {
 	pack(): PackedRasterable {
 		return this;
 	}
-	fill(size: Vec2D<number>): SizedRasterable {
+	generateForSize(size: Vec2D<number>): SizedRasterable {
 		return {
 			bounds: {x0:0, y0: 0, x1: size.x, y1: size.y},
 			toRaster: this.#background.toRaster.bind(this.#background),
@@ -304,7 +320,7 @@ export class PackedFlexRasterable implements PackedRasterable {
 		this.#background = background;
 		this.#children = children;
 	}
-	fill(size: Vec2D<number>): SizedRasterable {
+	generateForSize(size: Vec2D<number>): SizedRasterable {
 		validateSize(size);
 		const horiz = this.#direction == "rows";
 		
@@ -340,6 +356,9 @@ export class PackedFlexRasterable implements PackedRasterable {
 				}
 			}
 		}
+		
+		// Hmm: Maybe the thing to do is to turn each row into
+		// a component, then pack/expand the rows.
 		
 		const sizedChildren : CompoundChild<SizedRasterable>[] = [];
 		
@@ -385,7 +404,7 @@ export class PackedFlexRasterable implements PackedRasterable {
 						x1: cX + cFilledWidth,
 						y1: cY + cFilledHeight,
 					},
-					component: child.component.fill({x: cFilledWidth, y: cFilledHeight})
+					component: child.component.generateForSize({x: cFilledWidth, y: cFilledHeight})
 				});
 				along += filledLength;
 			}
@@ -442,7 +461,7 @@ export function makeSolidGenerator(char:string, style:Style) : AbstractRasterabl
 	return {
 		bounds: {x0:0, y0:0, x1:0, y1:0},
 		pack() { return this; },
-		fill(size:Vec2D<number>) {
+		generateForSize(size:Vec2D<number>) {
 			return {
 				bounds: {x0: 0, y0: 0, x1: size.x, y1: size.y},
 				toRaster(region:AABB2D<number>) {
