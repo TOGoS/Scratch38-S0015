@@ -115,9 +115,11 @@ export async function runTuiApp<Result>(
 		enter() : Promise<void>;
 		exit() : Promise<void>;
 		writeOut(text:string) : Promise<void>;
+		setScreenSize(screenSize:Vec2D<number>) : void;
 		setScene(scene:Rasterable) : void;
 	} = opts.outputMode == "lines" ? (() => {
 		let outProm = Promise.resolve();
+		let screenSize : Vec2D<number> = {x: 20, y: 10};
 		
 		return {
 			enter() { return outProm; },
@@ -125,8 +127,11 @@ export async function runTuiApp<Result>(
 			writeOut(text:string) {
 				return outProm.then(() => ctx.stdout.write(textEncoder.encode(text)));
 			},
+			setScreenSize(newScreenSize:Vec2D<number>) {
+				screenSize = newScreenSize;
+			},
 			setScene(scene:Rasterable) {
-				const outCommands = textRaster2ToLines(scene.toRaster({x:0,y:0}, getScreenSize()));
+				const outCommands = textRaster2ToLines(scene.toRaster({x:0,y:0}, screenSize));
 				for( const command of outCommands ) {
 					outProm = outProm.then(() => ctx.stdout.write(textEncoder.encode(toAnsi(command))));
 				}
@@ -139,12 +144,12 @@ export async function runTuiApp<Result>(
 				return createUniformRaster(size, " ", ansi.RESET_FORMATTING);
 			}
 		}
+		let screenSize : Vec2D<number> = {x: 20, y: 10};
 		let outProm = Promise.resolve();
 		let inTui = false; // At whatever point in time outProm represents
 		
 		const renderStateMan = new TUIRenderStateManager(ctx.stdout, async (out) => {
 			await outProm;
-			const screenSize = getScreenSize();
 			const raster = currentScene.toRaster(screenSize, screenSize);
 			const outCommands = textRaster2ToDrawCommands(raster);
 			for( const command of outCommands ) {
@@ -168,6 +173,12 @@ export async function runTuiApp<Result>(
 			async writeOut(text:string) {
 				await setMode(false);
 				await ctx.stdout.write(textEncoder.encode(text));
+			},
+			setScreenSize(newScreenSize:Vec2D<number>) {
+				if( newScreenSize.x == screenSize.x && newScreenSize.y == screenSize.y ) return;
+				
+				screenSize = newScreenSize;
+				if( inTui ) renderStateMan.requestRedraw();
 			},
 			setScene(scene:Rasterable) {
 				currentScene = scene;
@@ -211,6 +222,20 @@ export async function runTuiApp<Result>(
 			stdin = undefined;
 		} else {
 			stdin = ctx.stdin.readable;
+		}
+		
+		const refreshScreenSize = () => {
+			outMan.setScreenSize(getScreenSize());
+		}
+		
+		refreshScreenSize();
+		// TODO: Make this optional?
+		// Or unify as an async stream of changes or something?
+		// Remove dependency on 'Deno'
+		try {
+			Deno.addSignalListener("SIGWINCH", refreshScreenSize);
+		} catch( e ) {
+			setInterval(refreshScreenSize, 1000);
 		}
 		
 		const appInstance = spawner.spawn({
