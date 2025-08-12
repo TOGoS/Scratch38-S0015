@@ -135,14 +135,22 @@ function createUniformList<T>(length:number, item:T) : T[] {
 	return Array.from({ length }, () => item);
 }
 
+function validateRaster(rast:TextRaster2) {
+	if( rast.size.x < 0 || !isFinite(rast.size.x) ) throw new Error(`Bad raster width: ${rast.size.x}`);
+	if( rast.size.y < 0 || !isFinite(rast.size.y) ) throw new Error(`Bad raster height: ${rast.size.y}`);
+	if( rast.chars.length != rast.size.y ) throw new Error(`Raster chars length (${rast.chars.length} doesn't match size.y (${rast.size.y})`);
+	if( rast.styles.length != rast.size.y ) throw new Error(`Raster styles length (${rast.chars.length} doesn't match size.y (${rast.size.y})`);
+	return rast;
+}
+
 export function createUniformRaster(size:Vec2D<number>, char:string, style:string) : TextRaster2 {
 	const charLine  = createUniformList(size.x, char);
 	const styleLine = createUniformList(size.x, style);
-	return {
+	return validateRaster({
 		size,
 		chars : createUniformList(size.y,  charLine),
 		styles: createUniformList(size.y, styleLine),
-	}
+	})
 }
 
 function intersection(a:AABB2D<number>, b:AABB2D<number>) : AABB2D<number> {
@@ -178,16 +186,17 @@ function blitCanvasNoBoundsCheck(canvas:TextRaster2, offsetOntoCanvas:Vec2D<numb
 			resultChars[ row] = canvas.chars[ row];
 			resultStyles[row] = canvas.styles[row];
 		} else {
-			resultChars[ row] = blitRowNoBoundsCheck(canvas.chars[ row], offsetOntoCanvas.x, stampRaster.chars[ stampRegion.y0 + row - offsetOntoCanvas.y], stampRegion.x0, stampRegion.x1);
-			resultStyles[row] = blitRowNoBoundsCheck(canvas.styles[row], offsetOntoCanvas.x, stampRaster.styles[stampRegion.y0 + row - offsetOntoCanvas.y], stampRegion.x0, stampRegion.x1);
+			const stampIndex = stampRegion.y0 + row - destY0;
+			resultChars[ row] = blitRowNoBoundsCheck(canvas.chars[ row], offsetOntoCanvas.x, stampRaster.chars[ stampIndex], stampRegion.x0, stampRegion.x1);
+			resultStyles[row] = blitRowNoBoundsCheck(canvas.styles[row], offsetOntoCanvas.x, stampRaster.styles[stampIndex], stampRegion.x0, stampRegion.x1);
 			if( resultChars[ row] != canvas.chars[row] || resultStyles[row] != canvas.styles[row] ) anythingChanged = true;
 		}
 	}
-	return anythingChanged ? {
+	return anythingChanged ? validateRaster({
 		size: canvas.size,
 		chars: resultChars,
 		styles: resultStyles,
-	} : canvas;
+	}) : canvas;
 }
 
 export function blitToRaster(
@@ -196,6 +205,7 @@ export function blitToRaster(
 	stampRaster:TextRaster2,
 	stampRegion:AABB2D<number> = {x0: 0, y0: 0, x1: stampRaster.size.x, y1: stampRaster.size.y}
 ) : TextRaster2 {
+	validateRaster(canvas);
 	// Crop source region to source, adjusting offset as needed
 	const stampCroppedStampRegion = intersection(stampRegion, {x0:0, y0:0, x1:stampRaster.size.x, y1:stampRaster.size.y});
 	offsetOntoCanvas = {
@@ -219,11 +229,11 @@ export function blitToRaster(
 export function textToRaster(text:string, style:Style) : TextRaster2 {
 	const chars  = toChars(text);
 	const styles = createUniformList(chars.length, style);
-	return {
+	return validateRaster({
 		size: {x: chars.length, y: 1},
 		chars : [chars ],
 		styles: [styles],
-	}
+	})
 }
 
 export function drawTextToRaster(canvas:TextRaster2, offset:Vec2D<number>, text:string, style:Style) {
