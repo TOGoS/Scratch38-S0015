@@ -3,10 +3,11 @@ import AABB2D from '../../lib/ts/termdraw/AABB2D.ts';
 
 import KeyEvent from '../../lib/ts/terminput/KeyEvent.ts';
 import TextRaster2, { Style } from '../../lib/ts/termdraw/TextRaster2.ts';
-import { createUniformRaster, drawTextToRaster } from '../../lib/ts/termdraw/textraster2utils.ts';
+import { createUniformRaster, drawTextToRaster, textToRaster } from '../../lib/ts/termdraw/textraster2utils.ts';
 import * as ansi from '../../lib/ts/termdraw/ansi.ts';
 import { AbstractAppInstance, PossiblyTUIAppContext, PossiblyTUIAppSpawner, runTuiApp, TUIAppRunOpts, Waitable } from '../../lib/ts/tuiappframework3.ts';
-import { AbstractBorderRasterable, FixedRasterable, rasterizeAbstractRasterableToSize, rasterToSize, RegionRasterable } from '../../lib/ts/components2.ts';
+import { AbstractBorderRasterable, AbstractFlexRasterable, AbstractRasterable, FixedRasterable, makeSolidGenerator, rasterizeAbstractRasterableToSize, rasterToSize, RegionRasterable } from '../../lib/ts/components2.ts';
+import { PackedFlexRasterable } from '../../lib/ts/components2.ts';
 
 //// Misc helper functions
 
@@ -255,6 +256,46 @@ class WCAppInstance extends DemoAppInstance {
 	}
 }
 
+function mkTextRasterable(spans:{text:string, style:Style}[]) : AbstractRasterable {
+	return new AbstractFlexRasterable("rows", makeSolidGenerator(" ",ansi.BLACK_BACKGROUND), [
+		...spans.map(span => {
+			const rast = textToRaster(span.text, span.style);
+			return {
+				component: new FixedRasterable(rast),
+				flexGrow: 0,
+				flexShrink: 0
+			}
+		}),
+		{
+			component: makeSolidGenerator(" ", ansi.BLACK_BACKGROUND),
+			flexGrow: 1, flexShrink: 1
+		}
+	]); // Maybe add a padding one at the end
+}
+
+class BoxesAppInstance extends DemoAppInstance {
+	constructor(ctx:PossiblyTUIAppContext) {
+		super(ctx);
+		ctx.setScene({
+			toRaster(minSize, maxSize) {
+				const sizeSpan = mkTextRasterable([
+					{text:"Screen size: ", style:ansi.WHITE_TEXT},
+					{text:maxSize.x +" x " +maxSize.y, style:ansi.BRIGHT_WHITE_TEXT},
+				]);
+				const treeBg = makeSolidGenerator(" ", ansi.BLUE_BACKGROUND);
+				const tree = new AbstractFlexRasterable("columns", treeBg, [
+					{component: sizeSpan, flexGrow: 0, flexShrink: 0},
+					// TODO: Instead of solid, make boxes
+					{component: makeSolidGenerator("2", ansi.RED_TEXT), flexGrow: 1, flexShrink: 0},
+					{component: makeSolidGenerator("3", ansi.GREEN_TEXT), flexGrow: 1, flexShrink: 0},
+					
+				]);
+				return rasterizeAbstractRasterableToSize(tree, maxSize);
+			}
+		})
+	}
+}
+
 //// Over-engineered process spawning stuff
 
 const HELP_TEXT_LINES = [
@@ -409,6 +450,14 @@ function parseMain(args:string[]) : Spawner<ProcLikeSpawnContext,Waitable<number
 		return tuiAppToProcLike({
 			inputMode: usingStdin || topArgs.inputMode == undefined ? 'none' : topArgs.inputMode,
 			spawn: (ctx:PossiblyTUIAppContext) => new WCAppInstance(ctx, inputFiles),
+		}, {
+			...runOpts,
+			outputMode: topArgs.outputMode ?? "screen"
+		});
+	} else if( topArgs.appName == "boxes" ) {
+		return tuiAppToProcLike({
+			inputMode: topArgs.inputMode ?? "none",
+			spawn: (ctx:PossiblyTUIAppContext) => new BoxesAppInstance(ctx),
 		}, {
 			...runOpts,
 			outputMode: topArgs.outputMode ?? "screen"
