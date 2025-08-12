@@ -123,6 +123,13 @@ export function rasterizeAbstractRasterableToSize(abstrast:AbstractRasterable, t
 	return rasterizePackedRasterableToSize(abstrast.pack(), targetSize);
 }
 
+//// Utilioty functions
+
+function validateSize(size:Vec2D<number>) {
+	if( size.x < 0 || !isFinite(size.x) || size.y < 0 || !isFinite(size.y) ) throw new Error(`Invalid size: ${JSON.stringify(size)}`);
+	return size;
+}
+
 //// Some building blocks
 
 // TODO: Review/test; this was originally copilot-generated
@@ -298,6 +305,7 @@ export class PackedFlexRasterable implements PackedRasterable {
 		this.#children = children;
 	}
 	fill(size: Vec2D<number>): SizedRasterable {
+		validateSize(size);
 		const horiz = this.#direction == "rows";
 		
 		const rows = [];
@@ -355,7 +363,7 @@ export class PackedFlexRasterable implements PackedRasterable {
 			}
 			const leftoverLength = boxLength - totalLength;
 			// if( leftoverLength < 0 ) throw new Error("TODO: Implement shrinking");
-			if( leftoverLength > 0 && totalGrow == 0 ) totalGrow = 1; // If nothing wants to grow, fine.
+			if( totalGrow == 0 ) totalGrow = 1; // If nothing wants to grow, fine.
 			// TODO: Deal with 'have to shrink' case
 			for( let c=0; c<row.length; ++c ) {
 				const child = row[c];
