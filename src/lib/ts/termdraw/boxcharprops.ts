@@ -8,11 +8,14 @@ export const BDC_PROP_SHIFTS = {
 	DOWN  : BDC_PROP_SHIFT*2,
 	RIGHT : BDC_PROP_SHIFT*3,
 };
-export const BDC_PROP_VALUES = {
-	NONE   : 0,
-	LIGHT  : 1,
-	DOUBLE : 2,
-	HEAVY  : 3,
+
+export type LineStyle = number & {roleRef?:"x:BoxDrawingLineStyle"};
+
+export const BDC_PROP_VALUES : {[name:string]: LineStyle} = {
+	NONE         : 0,
+	LIGHT        : 1,
+	DOUBLE       : 2,
+	HEAVY        : 3,
 	LIGHT_DOTTED : 4,
 	LIGHT_DASHED : 5,
 	HEAVY_DOTTED : 6,
