@@ -297,8 +297,9 @@ class BoxesAppInstance extends DemoAppInstance {
 				const tree = makeBorderedAbstractRasterable(border, 1, new AbstractFlexRasterable("columns", treeBg, [
 					{component: simpleBorder("#", ansi.WHITE_TEXT, sizeSpan), flexGrow: 0, flexShrink: 0},
 					// TODO: Instead of solid, make boxes
-					{component: simpleBorder("2", ansi.BOLD+ansi.RED_TEXT, makeSolidGenerator("2", ansi.RED_TEXT)), flexGrow: 1, flexShrink: 0},
+					{component: simpleBorder("2", ansi.BOLD+ansi.RED_TEXT  , makeSolidGenerator("2", ansi.RED_TEXT  )), flexGrow: 1, flexShrink: 0},
 					{component: simpleBorder("3", ansi.BOLD+ansi.GREEN_TEXT, makeSolidGenerator("3", ansi.GREEN_TEXT)), flexGrow: 1, flexShrink: 0},
+					{component: simpleBorder("4", ansi.BOLD+ansi.BLUE_TEXT , makeSolidGenerator("4", ansi.BLUE_TEXT )), flexGrow: 1, flexShrink: 0},
 				]));
 				return rasterizeAbstractRasterableToSize(tree, maxSize);
 			}

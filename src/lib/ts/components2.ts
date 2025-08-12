@@ -355,22 +355,22 @@ export class PackedFlexRasterable implements PackedRasterable {
 			}
 			const leftoverLength = boxLength - totalLength;
 			if( leftoverLength < 0 ) throw new Error("TODO: Implement shrinking");
-			if( leftoverLength > 0 && totalGrow == 0 ) throw new Error("TODO: Handle case where totalGrow = 0");
-			// TODO: deal with case where we need to shrink/expand but totalGrow / totalShrink is 0 by spreading it to everyone
+			if( leftoverLength > 0 && totalGrow == 0 ) totalGrow = 1; // If nothing wants to grow, fine.
 			// TODO: Deal with 'have to shrink' case
-			for( const child of row ) {
+			for( let c=0; c<row.length; ++c ) {
+				const child = row[c];
 				const cBounds = child.component.bounds;
 				const cWidth  = cBounds.x1 - cBounds.x0;
 				const cHeight = cBounds.y1 - cBounds.y0;
 				const cLength = horiz ? cWidth : cHeight;
-				const filledLength = Math.round(cLength + leftoverLength * child.flexGrow / totalGrow);
+				const filledLength =
+					c == row.length - 1 ? boxLength - along :
+					Math.min(Math.round(cLength + leftoverLength * child.flexGrow / totalGrow));
 				const cX = horiz ? along : across;
 				const cY = horiz ? across : along;
 				const cFilledWidth  = horiz ? filledLength : maxDepth;
 				const cFilledHeight = horiz ? maxDepth : filledLength;
 				
-				// TODO: Watch out for rounding errors, lest we end up at along = not quite filledLength;
-				// maybe recalculate based on actual remaining space as we iterate through the children.
 				sizedChildren.push({
 					bounds: {
 						x0: cX, y0: cY,
