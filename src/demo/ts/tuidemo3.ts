@@ -5,8 +5,8 @@ import KeyEvent from '../../lib/ts/terminput/KeyEvent.ts';
 import TextRaster2, { Style } from '../../lib/ts/termdraw/TextRaster2.ts';
 import { createUniformRaster, drawTextToRaster, textToRaster } from '../../lib/ts/termdraw/textraster2utils.ts';
 import * as ansi from '../../lib/ts/termdraw/ansi.ts';
-import { AbstractAppInstance, PossiblyTUIAppContext, PossiblyTUIAppSpawner, runTuiApp, TUIAppRunOpts, Waitable } from '../../lib/ts/tuiappframework3.ts';
-import { AbstractBorderRasterable, AbstractFlexRasterable, AbstractRasterable, FixedRasterable, makeBorderedAbstractRasterable, makeSolidGenerator, rasterizeAbstractRasterableToSize, rasterToSize, RegionRasterable } from '../../lib/ts/termdraw/components2.ts';
+import { AbstractAppInstance, PossiblyTUIAppContext, PossiblyTUIAppSpawner, Rasterable, runTuiApp, TUIAppRunOpts, Waitable } from '../../lib/ts/tuiappframework3.ts';
+import { AbstractBorderRasterable, AbstractFlexRasterable, AbstractRasterable, FixedRasterable, makeBorderedAbstractRasterable, makeSolidGenerator, PackedRasterable, rasterizeAbstractRasterableToSize, rasterToSize, RegionRasterable, RegionRasterableGenerator, SizedRasterable, sizeToBounds } from '../../lib/ts/termdraw/components2.ts';
 import { PackedFlexRasterable } from '../../lib/ts/termdraw/components2.ts';
 
 //// Misc helper functions
@@ -279,8 +279,42 @@ function mkTextRasterable(spans:{text:string, style:Style}[]) : AbstractRasterab
 	]); // Maybe add a padding one at the end
 }
 
-function simpleBorder(char:string, style:string, interior:AbstractRasterable) : AbstractRasterable {
+function simpleBorder(char:string, style:Style, interior:AbstractRasterable) : AbstractRasterable {
 	return makeBorderedAbstractRasterable(makeSolidGenerator(char, style), 1, interior)
+}
+
+import { LineStyle } from '../../lib/ts/termdraw/boxcharprops.ts';
+
+class SizedLineBorderRasterable implements SizedRasterable {
+	readonly bounds : AABB2D<number>;
+	#background : RegionRasterable;
+	#bdcLineStyle : LineStyle;
+	#lineStyle  : Style;
+	constructor(background:RegionRasterable, region:AABB2D<number>, bdcLineStyle:LineStyle, lineStyle:Style) {
+		this.bounds = region;
+		this.#background = background;
+		this.#bdcLineStyle = bdcLineStyle;
+		this.#lineStyle = lineStyle;
+	}
+	toRaster(region: AABB2D<number>): TextRaster2 {
+		let rast = this.#background.toRaster(region);
+		throw new Error("TODO: Draw the lines!");
+		return rast;
+	}
+}
+
+// TODO: Use this to draw some cool bordered boxes
+function lineBorder(background:RegionRasterable, bdcLineStyle:LineStyle, lineStyle:Style) : AbstractRasterable&PackedRasterable&RegionRasterableGenerator {
+	return {
+		bounds: {x0: -1, y0:-1, x1: 1, y1: 1},
+		pack() { return this; },
+		generateForSize(size:Vec2D<number>) {
+			return this.generateForRegion(sizeToBounds(size));
+		},
+		generateForRegion(region:AABB2D<number>) {
+			return new SizedLineBorderRasterable(background, region, bdcLineStyle, lineStyle);
+		}
+	}
 }
 
 class BoxesAppInstance extends DemoAppInstance {
