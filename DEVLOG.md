@@ -402,3 +402,37 @@ Some not-super-important updates, but progress nonetheless:
   use "-" to mean 'standard input'
 - More colors defined in `ansi.ts`.  Concatenate to combine options.  e.g.
   `ansi.UNDERLINED + ansi.BRIGHT_WHITE_TEXT + ansi.RED_BACKGROUND`
+
+## 2025-08-12
+
+Past few days I worked on a layout system that I called '[components2](./src/lib/ts/termdraw/components2.ts)'.
+It seems to be working pretty well!
+
+![Box layout screenshot](http://picture-files.nuke24.net/uri-res/raw/urn:bitprint:NC26MWUVSTC5BLCFDNTE3UVI3TTIMLRA.KMXEUJGW3UU5EQQI24VY3UZQBRAF4ACNDUD6RPA/20250811-BoxLayout.png)
+
+That said, here are some things I'd liked to change:
+- Improve flex layouts -- mind `flexShrink`
+- Aggresively memoize everything
+- Automatic box-drawing
+
+For 'automatic box drawing', what I have in mind
+is that at some point, an outline is drawn simply
+by blitting some placeholder character for borders,
+and then later those would be replaced with box-drawing characters
+based on which neighbors are the same placeholder character.
+Separate boxes could be kept separate by using different placeholders.
+Alternatively, border pixels with different styles could be considered separate boxes.
+
+This would have the advantage that boxes could be drawn across multiple
+components without coordination.
+
+On the other hand
+- How to allocate box IDs?
+- Maybe don't really need it!
+
+And either way, if I want e.g. the flex layout to put borders between cells,
+I need to figure a way to specify that.
+
+In the meantime, maybe the thing to do is to massage
+the output from the existing [BoxDrawr library](./src/lib/ts/termdraw/BoxDrawr.ts)
+so I can at least blit that stuff.

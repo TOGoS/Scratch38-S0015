@@ -1,8 +1,8 @@
 import { assert } from "https://deno.land/std@0.165.0/testing/asserts.ts";
-import AABB2D from "../../lib/ts/termdraw/AABB2D.ts";
-import TextRaster2, { Style } from "../../lib/ts/termdraw/TextRaster2.ts";
-import Vec2D from "../../lib/ts/termdraw/Vec2D.ts";
-import { blitToRaster, createUniformRaster } from "../../lib/ts/termdraw/textraster2utils.ts";
+import AABB2D from "./AABB2D.ts";
+import TextRaster2, { Style } from "./TextRaster2.ts";
+import Vec2D from "./Vec2D.ts";
+import { blitToRaster, createUniformRaster } from "./textraster2utils.ts";
 
 // Automatic 'component' layout system
 // 

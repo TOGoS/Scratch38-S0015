@@ -186,9 +186,9 @@ function blitCanvasNoBoundsCheck(canvas:TextRaster2, offsetOntoCanvas:Vec2D<numb
 			resultChars[ row] = canvas.chars[ row];
 			resultStyles[row] = canvas.styles[row];
 		} else {
-			const stampIndex = stampRegion.y0 + row - destY0;
-			resultChars[ row] = blitRowNoBoundsCheck(canvas.chars[ row], offsetOntoCanvas.x, stampRaster.chars[ stampIndex], stampRegion.x0, stampRegion.x1);
-			resultStyles[row] = blitRowNoBoundsCheck(canvas.styles[row], offsetOntoCanvas.x, stampRaster.styles[stampIndex], stampRegion.x0, stampRegion.x1);
+			const stampRow = stampRegion.y0 + row - destY0;
+			resultChars[ row] = blitRowNoBoundsCheck(canvas.chars[ row], offsetOntoCanvas.x, stampRaster.chars[ stampRow], stampRegion.x0, stampRegion.x1);
+			resultStyles[row] = blitRowNoBoundsCheck(canvas.styles[row], offsetOntoCanvas.x, stampRaster.styles[stampRow], stampRegion.x0, stampRegion.x1);
 			if( resultChars[ row] != canvas.chars[row] || resultStyles[row] != canvas.styles[row] ) anythingChanged = true;
 		}
 	}

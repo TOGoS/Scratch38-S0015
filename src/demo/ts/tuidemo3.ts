@@ -6,8 +6,8 @@ import TextRaster2, { Style } from '../../lib/ts/termdraw/TextRaster2.ts';
 import { createUniformRaster, drawTextToRaster, textToRaster } from '../../lib/ts/termdraw/textraster2utils.ts';
 import * as ansi from '../../lib/ts/termdraw/ansi.ts';
 import { AbstractAppInstance, PossiblyTUIAppContext, PossiblyTUIAppSpawner, runTuiApp, TUIAppRunOpts, Waitable } from '../../lib/ts/tuiappframework3.ts';
-import { AbstractBorderRasterable, AbstractFlexRasterable, AbstractRasterable, FixedRasterable, makeBorderedAbstractRasterable, makeSolidGenerator, rasterizeAbstractRasterableToSize, rasterToSize, RegionRasterable } from '../../lib/ts/components2.ts';
-import { PackedFlexRasterable } from '../../lib/ts/components2.ts';
+import { AbstractBorderRasterable, AbstractFlexRasterable, AbstractRasterable, FixedRasterable, makeBorderedAbstractRasterable, makeSolidGenerator, rasterizeAbstractRasterableToSize, rasterToSize, RegionRasterable } from '../../lib/ts/termdraw/components2.ts';
+import { PackedFlexRasterable } from '../../lib/ts/termdraw/components2.ts';
 
 //// Misc helper functions
 

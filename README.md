@@ -6,6 +6,8 @@ Some Deno code for TUI...stuff.
 
 To run demonstration, try one of:
 - `deno run --check=all help`
+- `deno run --check=all boxes`
+  - Box layout demo!
 - `deno run --check=all hello`
 - `deno run --check=all clock`
 - `deno run --check=all --allow-read src\demo\ts\tuidemo3.ts wc README.md CHANGELOG.txt`
