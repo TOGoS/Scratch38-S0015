@@ -436,3 +436,12 @@ I need to figure a way to specify that.
 In the meantime, maybe the thing to do is to massage
 the output from the existing [BoxDrawr library](./src/lib/ts/termdraw/BoxDrawr.ts)
 so I can at least blit that stuff.
+
+## 2025-08-18
+
+### Borders drawn with proper line-drawing characters!
+
+![Screenshot showing box borders drawn using proper box-drawing characters](http://picture-files.nuke24.net/uri-res/raw/urn:bitprint:GUSKYBJLEJ4WKUVYJKFLQ5FSEF4RNEP5.FEM2X3ND4KF6AD4MHA2GGOLQKLKAMGFHGTFYGAA/20250818-LineBoxes.png)
+
+`BoxDrawr` now has a `contentToRaster` method, which returns a `TextRaster2`.
+This can be used to draw more complicated liney stuff, too, not just rectangles.

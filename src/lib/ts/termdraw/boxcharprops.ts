@@ -48,6 +48,8 @@ export const BOX_DRAWING_CHAR_PROPS : {[char:string]: number} = {
 	"┴": (LIGHT << LEFT) | (LIGHT << RIGHT) | (LIGHT << UP),
 	"┼": (LIGHT << UP) | (LIGHT << DOWN) | (LIGHT << LEFT) | (LIGHT << RIGHT),
 	//
+	"═": (DOUBLE << LEFT) | (DOUBLE << RIGHT),
+	"║": (DOUBLE << UP) | (DOUBLE << DOWN),
 	"╔": (DOUBLE << DOWN) | (DOUBLE << RIGHT),
 	"╗": (DOUBLE << DOWN) | (DOUBLE << LEFT),
 	"╚": (DOUBLE << UP) | (DOUBLE << RIGHT),

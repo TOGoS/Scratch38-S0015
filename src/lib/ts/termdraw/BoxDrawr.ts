@@ -3,6 +3,7 @@ const bdchars : (string|undefined)[] = [];
 import { assertEquals } from "https://deno.land/std@0.165.0/testing/asserts.ts";
 
 import { BDC_PROP_MASK, BDC_PROP_VALUES, BDC_PROP_SHIFTS, BOX_DRAWING_CHAR_PROPS } from './boxcharprops.ts';
+import TextRaster2 from "./TextRaster2.ts";
 
 for( const k in BOX_DRAWING_CHAR_PROPS ) {
 	const props = BOX_DRAWING_CHAR_PROPS[k];
@@ -35,6 +36,30 @@ export default class BoxDrawr {
 		const dat = this.#data[index];
 		const char = bdchars[dat];
 		return char ?? "?";
+	}
+	contentToRaster(style:string) : TextRaster2 {
+		const charLines = [];
+		const styleLines = [];
+		
+		const styleLine = [];
+		for( let x=0; x<this.#width; ++x ) {
+			styleLine.push(style);
+		}
+		
+		for( let y=0; y<this.#height; ++y ) {
+			const charLine = [];
+			for( let x=0; x<this.#width; ++x ) {
+				charLine.push(this.charAt(x,y));
+			}
+			charLines.push(charLine);
+			styleLines.push(styleLine);
+		}
+		
+		return {
+			size: {x: this.#width, y:this.#height},
+			chars: charLines,
+			styles: styleLines,
+		}
 	}
 	contentToString() : string {
 		let i=0;
