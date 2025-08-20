@@ -295,7 +295,7 @@ class SizedLineBorderRasterable implements SizedRasterable {
 		this.#bdcLineStyle = bdcLineStyle;
 		this.#lineStyle = lineStyle;
 	}
-	toRaster(region: AABB2D<number>): TextRaster2 {
+	regionToRaster(region: AABB2D<number>): TextRaster2 {
 		const size = boundsToSize(region);
 		const boxDrawr = new BoxDrawr(size.x, size.y);
 		const x0 = this.bounds.x0 - region.x0;

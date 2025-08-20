@@ -83,7 +83,7 @@ export interface PackedRasterable extends SizedRasterableGenerator {
 
 /** Conceptually infinite object that can be asked to rasterize some section of itself */
 export interface RegionRasterable {
-	toRaster(region:AABB2D<number>) : TextRaster2;	
+	regionToRaster(region:AABB2D<number>) : TextRaster2;
 }
 
 /**
@@ -122,7 +122,7 @@ export function rasterToSize(raster:TextRaster2, targetSize:Vec2D<number>) : Tex
 export function rasterizeRasterableToSize(rasterable:SizedRasterable, targetSize:Vec2D<number>) : TextRaster2 {
 	const rcx : number = (rasterable.bounds.x0 + rasterable.bounds.x1) / 2;
 	const rcy : number = (rasterable.bounds.y0 + rasterable.bounds.y1) / 2;
-	const rast = rasterable.toRaster({
+	const rast = rasterable.regionToRaster({
 		x0: rcx - targetSize.x / 2,
 		y0: rcy - targetSize.y / 2,
 		x1: rcx + targetSize.x / 2,
@@ -173,7 +173,7 @@ export class FixedRasterable implements AbstractRasterable, PackedRasterable, Si
 	generateForRegion(_area: AABB2D<number>): SizedRasterable {
 		return this;
 	}
-	toRaster(_region: AABB2D<number>) : TextRaster2 {
+	regionToRaster(_region: AABB2D<number>) : TextRaster2 {
 		return this.#raster;
 	}
 }
@@ -267,12 +267,12 @@ export class SizedCompoundRasterable implements SizedRasterable {
 	
 	get bounds() { return this.#background.bounds; }
 	
-	toRaster(region: AABB2D<number>): TextRaster2 {
-		let rast = this.#background.toRaster(region);
+	regionToRaster(region: AABB2D<number>): TextRaster2 {
+		let rast = this.#background.regionToRaster(region);
 		const bgx0 = this.#background.bounds.x0;
 		const bgy0 = this.#background.bounds.y0;
 		for( const child of this.#children ) {
-			const childRast = child.component.toRaster(child.component.bounds);
+			const childRast = child.component.regionToRaster(child.component.bounds);
 			const childRastClipped = rasterToSize(childRast, boundsToSize(child.bounds));
 			rast = blitToRaster(rast, {x: child.bounds.x0 - bgx0, y: child.bounds.y0 - bgy0}, childRastClipped);
 		}
@@ -294,7 +294,7 @@ export class PaddingRasterable implements AbstractRasterable, PackedRasterable {
 	generateForSize(size: Vec2D<number>): SizedRasterable {
 		return {
 			bounds: {x0:0, y0: 0, x1: size.x, y1: size.y},
-			toRaster: this.#background.toRaster.bind(this.#background),
+			regionToRaster: this.#background.regionToRaster.bind(this.#background),
 		};
 	}
 }
@@ -416,7 +416,7 @@ export class PackedFlexRasterable implements PackedRasterable {
 		return new SizedCompoundRasterable(
 			// Hmm: Maybe ought to lazily generate the background raster
 			// but maybe that doesn't matter
-			new FixedRasterable(this.#background.toRaster({x0:0, y0:0, x1:size.x, y1:size.y})),
+			new FixedRasterable(this.#background.regionToRaster({x0:0, y0:0, x1:size.x, y1:size.y})),
 			sizedChildren
 		);
 	}
@@ -464,12 +464,12 @@ export function makeSolidGenerator(char:string, style:Style) : AbstractRasterabl
 		generateForSize(size:Vec2D<number>) {
 			return {
 				bounds: {x0: 0, y0: 0, x1: size.x, y1: size.y},
-				toRaster(region:AABB2D<number>) {
+				regionToRaster(region:AABB2D<number>) {
 					return createUniformRaster(boundsToSize(region), char, style);
 				}
 			}
 		},
-		toRaster(region:AABB2D<number>) {
+		regionToRaster(region:AABB2D<number>) {
 			return createUniformRaster(boundsToSize(region), char, style);
 		},
 	}
