@@ -3,7 +3,7 @@ import * as ansi from '../../lib/ts/termdraw/ansi.ts';
 import { boundsToSize, sizeToBounds } from '../../lib/ts/termdraw/boundsutils.ts';
 import { BDC_PROP_VALUES, LineStyle } from '../../lib/ts/termdraw/boxcharprops.ts';
 import BoxDrawr from '../../lib/ts/termdraw/BoxDrawr.ts';
-import { AbstractFlexRasterable, AbstractRasterable, BoundedRasterable, FixedRasterable, FlexChild, makeBorderedAbstractRasterable, makeSeparatedFlex, makeSolidGenerator, PackedRasterable, PaddingRasterable, RegionFillingRasterableGenerator, SizedRasterable, thisAbstractRasterableToRasterForSize, thisPackedRasterableRegionToRaster } from '../../lib/ts/termdraw/components2.ts';
+import { AbstractComponentWrapper, AbstractFlexRasterable, AbstractRasterable, BoundedRasterable, FixedRasterable, FlexChild, makeBorderedAbstractRasterable, makeSeparatedFlex, makeSolidGenerator, PackedRasterable, PaddingRasterable, RegionFillingRasterableGenerator, SizedRasterable } from '../../lib/ts/termdraw/components2.ts';
 import TextRaster2, { Style } from '../../lib/ts/termdraw/TextRaster2.ts';
 import { createUniformRaster, drawTextToRaster, textToRaster } from '../../lib/ts/termdraw/textraster2utils.ts';
 import Vec2D from '../../lib/ts/termdraw/Vec2D.ts';
@@ -144,7 +144,7 @@ interface WCAppState {
 class WCAppInstance extends DemoAppInstance implements SizedRasterable {
 	#stdin : ReadableStream<Uint8Array>|undefined;
 	#inputNames : string[];
-	#sceneCache : AbstractRasterable|undefined;
+	#sceneCache : SizedRasterable|undefined;
 	constructor(ctx:PossiblyTUIAppContext, inputNames:string[]) {
 		super(ctx);
 		this.#stdin = ctx.stdin;
@@ -170,7 +170,7 @@ class WCAppInstance extends DemoAppInstance implements SizedRasterable {
 	
 	_refreshTimer : number|undefined;
 	
-	_generateScene() : AbstractRasterable {
+	_generateScene() : SizedRasterable {
 		const now = new Date();
 		
 		const currentInputLine : [string,Style] =
@@ -196,10 +196,10 @@ class WCAppInstance extends DemoAppInstance implements SizedRasterable {
 		const content = new FixedRasterable(rast);
 		const bordered = makeBorderedAbstractRasterable(border, 1, content);
 		
-		return bordered;
+		return new AbstractComponentWrapper(bordered);
 	}
 	
-	get _scene() : AbstractRasterable {
+	get _scene() : SizedRasterable {
 		if( this.#sceneCache == undefined ) {
 			this.#sceneCache = this._generateScene();
 		}
@@ -359,8 +359,6 @@ function lineBorder(bdcLineStyle:LineStyle, lineStyle:Style) : AbstractRasterabl
 		fillRegion(region:AABB2D<number>) {
 			return new SizedLineBorderRasterable(region, bdcLineStyle, lineStyle);
 		},
-		rasterForRegion: thisPackedRasterableRegionToRaster,
-		rasterForSize: thisAbstractRasterableToRasterForSize,
 	}
 }
 
@@ -384,7 +382,7 @@ class BoxesAppInstance extends DemoAppInstance implements SizedRasterable {
 		ctx.setScene(this);
 	}
 	
-	_buildScene(size:Vec2D<number>) : AbstractRasterable {
+	_buildScene(size:Vec2D<number>) : SizedRasterable {
 		const border = makeSolidGenerator(" ", ansi.RED_BACKGROUND);
 		const treeBg = blueBackground;
 		
@@ -418,7 +416,7 @@ class BoxesAppInstance extends DemoAppInstance implements SizedRasterable {
 			{component: lineBordered(BDC_PROP_VALUES.LIGHT, ansi.BOLD+ansi.GREEN_TEXT, makeSolidGenerator("3", ansi.GREEN_TEXT)), ...padProps},
 			{component: lineBordered(BDC_PROP_VALUES.LIGHT, ansi.BOLD+ansi.BLUE_TEXT , makeSolidGenerator("4", ansi.BLUE_TEXT )), ...padProps},
 		]));
-		return tree;
+		return new AbstractComponentWrapper(tree);
 	}
 	
 	rasterForSize(size: Vec2D<number>): TextRaster2 {
@@ -546,8 +544,8 @@ class StatusMockupAppInstance extends DemoAppInstance implements SizedRasterable
 		ctx.setScene(this);
 	}
 	
-	_buildScene(_size:Vec2D<number>) : AbstractRasterable {
-		return new AbstractFlexRasterable("down", blueBackground, [
+	_buildScene(_size:Vec2D<number>) : SizedRasterable {
+		return new AbstractComponentWrapper(new AbstractFlexRasterable("down", blueBackground, [
 			{
 				component: makeBorderedAbstractRasterable(protoBorder, 1, statusDatasToAR(this.#statusDatas)),
 				flexGrowAlong: 0,
@@ -555,7 +553,7 @@ class StatusMockupAppInstance extends DemoAppInstance implements SizedRasterable
 				flexShrinkAcross: 0,
 				flexShrinkAlong: 0,
 			}
-		]);
+		]));
 	}
 	
 	rasterForSize(size: Vec2D<number>): TextRaster2 {

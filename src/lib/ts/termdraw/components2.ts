@@ -1,9 +1,8 @@
-import { assertEquals } from "https://deno.land/std@0.165.0/testing/asserts.ts";
 import AABB2D from "./AABB2D.ts";
 import TextRaster2, { Style } from "./TextRaster2.ts";
 import Vec2D from "./Vec2D.ts";
+import { boundsAreEqual, boundsToSize, centeredExpandedBounds, sizeToBounds, validateSize } from "./boundsutils.ts";
 import { blitToRaster, createUniformRaster } from "./textraster2utils.ts";
-import { boundsAreEqual, boundsToSize, centeredExpandedBounds, sizeToBounds } from "./boundsutils.ts";
 
 // Automatic 'component' layout system
 // 
@@ -38,7 +37,7 @@ import { boundsAreEqual, boundsToSize, centeredExpandedBounds, sizeToBounds } fr
 // it is trivial enough to turn one of this into one of that.
 // Maybe I'll replace that with a generic wrapper thing,
 // which can also take care of memoization.
-export interface AbstractRasterable extends SizedRasterable {
+export interface AbstractRasterable {
 	pack() : PackedRasterable;
 }
 
@@ -97,7 +96,9 @@ export interface SizeFillingRasterableGenerator {
  * because those bounds are the region of the raster that should
  * be filled with content.
  */
-export interface PackedRasterable extends SizeFillingRasterableGenerator, BoundedRasterable {}
+export interface PackedRasterable extends SizeFillingRasterableGenerator {
+	readonly bounds : AABB2D<number>;
+}
 
 /**
  * A thing that is conceptually 'all layed out' internally
@@ -140,32 +141,6 @@ export function rasterizeAbstractRasterableToSize(abstrast:AbstractRasterable, t
 
 //// Utilioty functions
 
-function validateSize(size:Vec2D<number>) {
-	if( size.x < 0 || !isFinite(size.x) || size.y < 0 || !isFinite(size.y) ) throw new Error(`Invalid size: ${JSON.stringify(size)}`);
-	return size;
-}
-
-/**
- * Implement regionToRaster for PackedRasterables that
- * don't know how to do that themselves.
- */
-export function thisPackedRasterableRegionToRaster(this:PackedRasterable, bounds:AABB2D<number>) {
-	const inflated = this.fillSize(boundsToSize(this.bounds));
-	return inflated.rasterForRegion(centeredExpandedBounds(inflated.bounds, boundsToSize(bounds)));
-}
-
-export function thisAbstractRasterableToRasterForSize(this:AbstractRasterable, size:Vec2D<number>) {
-	return rasterizeAbstractRasterableToSize(this, size);
-}
-
-export function thisRegionRasterableRasterForSize(this:RegionRasterable, size:Vec2D<number>) {
-	return this.rasterForRegion(sizeToBounds(size));
-}
-export function thisBoundedRegionRasterableCenteredRasterForSize(this:RegionRasterable&BoundedRasterable, size:Vec2D<number>) {
-	return this.rasterForRegion(centeredExpandedBounds(this.bounds, size));
-}
-
-
 /**
  * Rasterable that makes no effort to conform to any given size,
  * and packs to the size of the raster.
@@ -190,9 +165,7 @@ export class FixedRasterable implements AbstractRasterable, PackedRasterable, Bo
 		return this;
 	}
 	rasterForRegion(region: AABB2D<number>) : TextRaster2 {
-		if( boundsAreEqual(region, this.bounds) ) {
-			return this.#raster;
-		}
+		if( boundsAreEqual(region, this.bounds) ) return this.#raster;
 		
 		return blitToRaster(
 			createUniformRaster(boundsToSize(region), "", ""),
@@ -236,8 +209,6 @@ export class AbstractBorderRasterable implements AbstractRasterable {
 			bounds
 		);
 	}
-	
-	rasterForSize = thisAbstractRasterableToRasterForSize;
 }
 
 class PackedBorderRasterable implements PackedRasterable {
@@ -281,9 +252,6 @@ class PackedBorderRasterable implements PackedRasterable {
 			]
 		);
 	}
-	
-	rasterForRegion = thisPackedRasterableRegionToRaster;
-	rasterForSize = thisAbstractRasterableToRasterForSize;
 }
 
 interface CompoundChild<T> {
@@ -323,8 +291,6 @@ export class SizedCompoundRasterable implements BoundedRasterable {
 		}
 		return rast;
 	}
-	
-	rasterForSize = thisBoundedRegionRasterableCenteredRasterForSize;
 }
 
 const ZERO_BOUNDS = {x0:0, y0:0, x1:0, y1: 0};
@@ -346,7 +312,9 @@ export class PaddingRasterable implements AbstractRasterable, PackedRasterable, 
 	rasterForRegion(region:AABB2D<number>) {
 		return this.#background.rasterForRegion(region);
 	}
-	rasterForSize = thisRegionRasterableRasterForSize;
+	rasterForSize(size:Vec2D<number>) {
+		return this.#background.rasterForRegion(sizeToBounds(size));
+	}
 }
 
 // TODO: right/left/up/down
@@ -535,8 +503,6 @@ export class PackedFlexRasterable implements PackedRasterable {
 			sizedChildren
 		);
 	}
-	
-	rasterForRegion = thisPackedRasterableRegionToRaster;
 }
 
 // TODO: Replace with function FlexParent (an options/properties object) -> AbstractRasterable
@@ -577,8 +543,6 @@ export class AbstractFlexRasterable implements AbstractRasterable {
 		}
 		return new PackedFlexRasterable(this.#along, {x0:0, y0:0, x1:totalWidth, y1:totalHeight}, this.#background, packedChildren);
 	}
-	
-	rasterForSize = thisAbstractRasterableToRasterForSize;
 }
 
 function* addSep<T>(sep:T, items:Iterable<T>) : Iterable<T> {
@@ -616,10 +580,25 @@ export function makeSolidGenerator(char:string, style:Style) : AbstractRasterabl
 			}
 		},
 		rasterForRegion,
-		rasterForSize: thisAbstractRasterableToRasterForSize,
 	};
 }
 
 export function makeBorderedAbstractRasterable(borderDrawer:SizeFillingRasterableGenerator, borderWidth:number, interior:AbstractRasterable) {
 	return new AbstractBorderRasterable(interior, borderWidth, borderDrawer);
+}
+
+export class AbstractComponentWrapper implements AbstractRasterable, SizedRasterable {
+	readonly #wrapped : AbstractRasterable;
+	constructor(wrapped:AbstractRasterable) {
+		this.#wrapped = wrapped;
+	}
+	pack(): PackedRasterable {
+		// TODO: Memoize shit here
+		return this.#wrapped.pack();
+	}
+	rasterForSize(size: Vec2D<number>): TextRaster2 {
+		const expanded = this.pack().fillSize(size);
+		// TODO: Memoize this shit, too
+		return expanded.rasterForRegion(centeredExpandedBounds(expanded.bounds, size));
+	}
 }

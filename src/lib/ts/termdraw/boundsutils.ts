@@ -26,6 +26,11 @@ export function sizeToBounds(size:Vec2D<number>) : AABB2D<number> {
   return {x0: 0, y0: 0, x1: size.x, y1: size.y};
 }
 
+export function validateSize(size:Vec2D<number>) {
+	if( size.x < 0 || !isFinite(size.x) || size.y < 0 || !isFinite(size.y) ) throw new Error(`Invalid size: ${JSON.stringify(size)}`);
+	return size;
+}
+
 export function centeredExpandedBounds(objectBounds: AABB2D<number>, outerSize: Vec2D<number>): AABB2D<number> {
   const internalSize = boundsToSize(objectBounds);
   const padTop  = Math.round((outerSize.y - internalSize.y) / 2);

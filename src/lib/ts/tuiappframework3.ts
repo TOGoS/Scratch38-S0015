@@ -7,7 +7,8 @@ import { createUniformRaster, textRaster2ToDrawCommands, textRaster2ToLines } fr
 import TUIRenderStateManager from '../../lib/ts/termdraw/TUIRenderStateManager.ts';
 import { inputEvents } from '../../lib/ts/terminput/inputeventparser.ts';
 import KeyEvent from '../../lib/ts/terminput/KeyEvent.ts';
-import { SizedRasterable } from './termdraw/components2.ts';
+import { AbstractRasterable, PackedRasterable, SizedRasterable } from './termdraw/components2.ts';
+import { centeredExpandedBounds } from './termdraw/boundsutils.ts';
 
 //// Some types that could be librarified if this all works
 
