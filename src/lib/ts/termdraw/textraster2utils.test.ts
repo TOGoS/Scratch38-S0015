@@ -265,3 +265,71 @@ Deno.test("blit 2x2 square to 4x4 canvas with no changes", () => {
 	
 	assertStrictEquals(result, canvas);
 });
+
+Deno.test("blit 4x4 square to 2x2 canvas, centered", () => {
+	const c0 = ".";
+	const c1 = "X";
+	const s0 = RESET_FORMATTING;
+	const s1 = RED_TEXT;
+	
+	const canvas  = createUniformRaster({x: 2, y: 2}, c0, s0);
+	const stamp   = createUniformRaster({x: 4, y: 4}, c1, s1);
+	const cropped = createUniformRaster({x: 2, y: 2}, c1, s1);
+	
+	const result = blitToRaster(canvas, {x:-1, y:-1}, stamp, {x0:0, y0:0, x1:4, y1:4});
+	
+	assertEquals(result, cropped);
+});
+
+Deno.test("blit 2x2 square to 2x2 canvas at [-1,0]", () => {
+	const c0 = ".";
+	const c1 = "X";
+	const s0 = RESET_FORMATTING;
+	const s1 = RED_TEXT;
+	
+	const canvas  = createUniformRaster({x: 2, y: 2}, c0, s0);
+	const stamp   = createUniformRaster({x: 2, y: 2}, c1, s1);
+
+	const result = blitToRaster(canvas, {x:-1, y:0}, stamp, {x0:0, y0:0, x1:4, y1:4});
+	
+	const expectedResult : TextRaster2 = {
+		size: {x: 2, y: 2},
+		chars: [
+			[c1,c0],
+			[c1,c0],
+		],
+		styles: [
+			[s1,s0],
+			[s1,s0],
+		],
+	};
+	
+	assertEquals(result, expectedResult);
+});
+
+
+Deno.test("blit 4x4 square to 2x2 canvas at [-3,0]", () => {
+	const c0 = ".";
+	const c1 = "X";
+	const s0 = RESET_FORMATTING;
+	const s1 = RED_TEXT;
+	
+	const canvas  = createUniformRaster({x: 2, y: 2}, c0, s0);
+	const stamp   = createUniformRaster({x: 4, y: 4}, c1, s1);
+
+	const result = blitToRaster(canvas, {x:-3, y:0}, stamp, {x0:0, y0:0, x1:4, y1:4});
+	
+	const expectedResult : TextRaster2 = {
+		size: {x: 2, y: 2},
+		chars: [
+			[c1,c0],
+			[c1,c0],
+		],
+		styles: [
+			[s1,s0],
+			[s1,s0],
+		],
+	};
+	
+	assertEquals(result, expectedResult);
+});

@@ -3,6 +3,8 @@ import DrawCommand from './DrawCommand.ts';
 import AABB2D from './AABB2D.ts';
 import Vec2D from './Vec2D.ts';
 import { RESET_FORMATTING } from './ansi.ts';
+import { intersection } from './boundsutils.ts';
+import { assert } from 'https://deno.land/std@0.165.0/testing/asserts.ts';
 
 function actualChangedRegions(rasterA:TextRaster2, rasterB:TextRaster2, regions:Iterable<AABB2D<number>>) : Iterable<AABB2D<number>> {
 	// TODO: Check raster data, only emit sub-regions that actually differ
@@ -153,15 +155,6 @@ export function createUniformRaster(size:Vec2D<number>, char:string, style:strin
 	})
 }
 
-function intersection(a:AABB2D<number>, b:AABB2D<number>) : AABB2D<number> {
-	return {
-		x0: Math.max(a.x0, b.x0),
-		y0: Math.max(a.y0, b.y0),
-		x1: Math.min(a.x1, b.x1),
-		y1: Math.min(a.y1, b.y1),
-	}
-}
-
 function blitRowNoBoundsCheck<T>(canvas:T[], offset:number, stamp:T[], stampOffset0:number, stampOffset1:number) : T[] {
 	const result = [];
 	let anythingChanged = false;
@@ -207,23 +200,33 @@ export function blitToRaster(
 ) : TextRaster2 {
 	validateRaster(canvas);
 	// Crop source region to source, adjusting offset as needed
-	const stampCroppedStampRegion = intersection(stampRegion, {x0:0, y0:0, x1:stampRaster.size.x, y1:stampRaster.size.y});
+	//const stampCroppedStampRegion = intersection(stampRegion, {x0:0, y0:0, x1:stampRaster.size.x, y1:stampRaster.size.y});
+	const croppedStampRegion = intersection(
+		intersection(stampRegion,
+			{x0:0, y0:0, x1:stampRaster.size.x, y1:stampRaster.size.y}
+		),
+		{
+			x0: 0             - offsetOntoCanvas.x,
+			y0: 0             - offsetOntoCanvas.y,
+			x1: canvas.size.x - offsetOntoCanvas.x,
+			y1: canvas.size.y - offsetOntoCanvas.y,
+		}
+	);
 	offsetOntoCanvas = {
-		x: offsetOntoCanvas.x + stampCroppedStampRegion.x0 - stampRegion.x0,
-		y: offsetOntoCanvas.y + stampCroppedStampRegion.y0 - stampRegion.y0,
+		x: offsetOntoCanvas.x + croppedStampRegion.x0 - stampRegion.x0,
+		y: offsetOntoCanvas.y + croppedStampRegion.y0 - stampRegion.y0,
 	}
 	// Shortcut if entirely outside canvas
 	if( offsetOntoCanvas.x >= canvas.size.x ) return canvas;
 	if( offsetOntoCanvas.y >= canvas.size.y ) return canvas;
-	if( offsetOntoCanvas.x + stampCroppedStampRegion.x1 - stampCroppedStampRegion.x0 <= 0 ) return canvas;
-	if( offsetOntoCanvas.y + stampCroppedStampRegion.y1 - stampCroppedStampRegion.y0 <= 0 ) return canvas;
-	// Crop to canvas (implied to be nonzero at this point)
-	const canvasCroppedStampRegion = intersection(stampCroppedStampRegion, {x0:0, y0:0, x1:canvas.size.x, y1:canvas.size.y});
-	offsetOntoCanvas = {
-		x: offsetOntoCanvas.x + canvasCroppedStampRegion.x0 - stampCroppedStampRegion.x0,
-		y: offsetOntoCanvas.y + canvasCroppedStampRegion.y0 - stampCroppedStampRegion.y0,
-	}
-	return blitCanvasNoBoundsCheck(canvas, offsetOntoCanvas, stampRaster, canvasCroppedStampRegion);
+	if( offsetOntoCanvas.x + croppedStampRegion.x1 - croppedStampRegion.x0 <= 0 ) return canvas;
+	if( offsetOntoCanvas.y + croppedStampRegion.y1 - croppedStampRegion.y0 <= 0 ) return canvas;
+	
+	assert(offsetOntoCanvas.x >= 0);
+	assert(offsetOntoCanvas.y >= 0);
+	assert(offsetOntoCanvas.x + croppedStampRegion.x1 - croppedStampRegion.x0 <= canvas.size.x);
+	assert(offsetOntoCanvas.y + croppedStampRegion.y1 - croppedStampRegion.y0 <= canvas.size.y);
+	return blitCanvasNoBoundsCheck(canvas, offsetOntoCanvas, stampRaster, croppedStampRegion);
 }
 
 export function textToRaster(text:string, style:Style) : TextRaster2 {
