@@ -363,18 +363,18 @@ export interface FlexChild<T> {
 export class PackedFlexRasterable implements PackedRasterable {
 	readonly bounds : AABB2D<number>;
 	readonly #children : FlexChild<PackedRasterable>[];
-	readonly #direction : FlexDirection;
+	readonly #along : FlexDirection;
 	readonly #background : RegionRasterable;
-	constructor(direction:FlexDirection, bounds:AABB2D<number>, background:RegionRasterable, children:FlexChild<PackedRasterable>[]) {
+	constructor(along:FlexDirection, bounds:AABB2D<number>, background:RegionRasterable, children:FlexChild<PackedRasterable>[]) {
 		this.bounds = bounds;
-		this.#direction = direction;
+		this.#along = along;
 		this.#background = background;
 		this.#children = children;
 	}
 	
 	fillSize(size: Vec2D<number>): BoundedRasterable {
 		validateSize(size);
-		const horiz = this.#direction == "right";
+		const horiz = this.#along == "right";
 		
 		const rows = [];
 		const boxWidth  = size.x;
@@ -483,14 +483,15 @@ export class PackedFlexRasterable implements PackedRasterable {
 // TODO: Replace with function FlexParent (an options/properties object) -> AbstractRasterable
 export class AbstractFlexRasterable implements AbstractRasterable {
 	// TODO: Replace with along and across directions
-	readonly #along  : FlexDirection;
+	readonly #along      : FlexDirection;
+	// For now, #across is implicitly "right" or "down"
 	readonly #background : RegionRasterable;
 	readonly #children   : FlexChild<AbstractRasterable>[];
 	
 	constructor(along:FlexDirection, background:RegionRasterable, children:FlexChild<AbstractRasterable>[]) {
 		this.#children   = children  ;
 		this.#background = background;
-		this.#along  = along ;
+		this.#along      = along ;
 	}
 	pack(): PackedRasterable {
 		const packedChildren = this.#children.map(c => ({
@@ -530,8 +531,8 @@ function* addSep<T>(sep:T, items:Iterable<T>) : Iterable<T> {
 	}
 }
 
-export function makeSeparatedFlex(direction:FlexDirection, background:RegionRasterable, separator:FlexChild<AbstractRasterable>, children:Iterable<FlexChild<AbstractRasterable>>) {
-	return new AbstractFlexRasterable(direction, background, [...addSep(separator, children)]);
+export function makeSeparatedFlex(along:FlexDirection, background:RegionRasterable, separator:FlexChild<AbstractRasterable>, children:Iterable<FlexChild<AbstractRasterable>>) {
+	return new AbstractFlexRasterable(along, background, [...addSep(separator, children)]);
 }
 
 export function makeSolidGenerator(char:string, style:Style) : AbstractRasterable&PackedRasterable&SizeFillingRasterableGenerator&RegionRasterable {
