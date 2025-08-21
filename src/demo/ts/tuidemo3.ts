@@ -1,13 +1,12 @@
-import Vec2D from '../../lib/ts/termdraw/Vec2D.ts';
 import AABB2D from '../../lib/ts/termdraw/AABB2D.ts';
+import Vec2D from '../../lib/ts/termdraw/Vec2D.ts';
 
-import KeyEvent from '../../lib/ts/terminput/KeyEvent.ts';
+import * as ansi from '../../lib/ts/termdraw/ansi.ts';
+import { AbstractFlexRasterable, AbstractRasterable, BoundedRasterable, boundsToSize, FixedRasterable, makeBorderedAbstractRasterable, makeSolidGenerator, PackedRasterable, RegionRasterableGenerator, SizedRasterGenerator, sizeToBounds, thisAbstractRasterableToRasterForSize, thisPackedRasterableRegionToRaster } from '../../lib/ts/termdraw/components2.ts';
 import TextRaster2, { Style } from '../../lib/ts/termdraw/TextRaster2.ts';
 import { createUniformRaster, drawTextToRaster, textToRaster } from '../../lib/ts/termdraw/textraster2utils.ts';
-import * as ansi from '../../lib/ts/termdraw/ansi.ts';
-import { AbstractAppInstance, PossiblyTUIAppContext, PossiblyTUIAppSpawner, Rasterable, runTuiApp, TUIAppRunOpts, Waitable } from '../../lib/ts/tuiappframework3.ts';
-import { AbstractBorderRasterable, AbstractFlexRasterable, AbstractRasterable, boundsToSize, FixedRasterable, makeBorderedAbstractRasterable, makeSolidGenerator, PackedRasterable, rasterizeAbstractRasterableToSize, rasterToSize, RegionRasterable, RegionRasterableGenerator, SizedRasterable, sizeToBounds } from '../../lib/ts/termdraw/components2.ts';
-import { PackedFlexRasterable } from '../../lib/ts/termdraw/components2.ts';
+import KeyEvent from '../../lib/ts/terminput/KeyEvent.ts';
+import { AbstractAppInstance, PossiblyTUIAppContext, PossiblyTUIAppSpawner, runTuiApp, TUIAppRunOpts, Waitable } from '../../lib/ts/tuiappframework3.ts';
 
 //// Misc helper functions
 
@@ -60,13 +59,13 @@ class EchoAppInstance extends DemoAppInstance {
 		await this._ctx.writeOut("Hello.  I will echo some stuff shortly.\n");
 		await sleep(500);
 		this._ctx.setScene({
-			toRaster: (minSize, maxSize) => {
+			rasterForSize: size => {
 				// TODO: Make a component framework or something lol
 				const idealSize = {
 					x: this.#textLines.map(l => l.length).reduce((a,b) => Math.max(a,b), 0) + 4,
 					y: this.#textLines.length + 2,
 				}
-				let rast = createUniformRaster(clampSize(idealSize, minSize, maxSize), " ", ansi.RED_BACKGROUND);
+				let rast = createUniformRaster(clampSize(idealSize, {x:0, y:0}, size), " ", ansi.RED_BACKGROUND);
 				for( let i=0; i<this.#textLines.length; ++i ) {
 					rast = drawTextToRaster(rast, {x:2, y:i+1}, this.#textLines[i], ansi.RED_BACKGROUND);
 				}
@@ -101,12 +100,12 @@ class ClockAppInstance extends DemoAppInstance {
 			this._inputKeyMessage,
 		];
 		this._ctx.setScene({
-			toRaster: (minSize, maxSize) => {
+			rasterForSize: (size) => {
 				const idealSize = {
 					x: textLines.map(l => l.length).reduce((a,b) => Math.max(a,b), 0) + 4,
 					y: textLines.length + 2,
 				}
-				let rast = createUniformRaster(clampSize(idealSize, minSize, maxSize), " ", ansi.RED_BACKGROUND);
+				let rast = createUniformRaster(clampSize(idealSize, {x:0,y:0}, size), " ", ansi.RED_BACKGROUND);
 				for( let i=0; i<textLines.length; ++i ) {
 					rast = drawTextToRaster(rast, {x:1, y:i+1}, textLines[i], ansi.RED_BACKGROUND);
 				}
@@ -140,9 +139,10 @@ interface WCAppState {
 	status : "unstarted"|"reading"|"done";
 }
 
-class WCAppInstance extends DemoAppInstance {
+class WCAppInstance extends DemoAppInstance implements SizedRasterGenerator {
 	#stdin : ReadableStream<Uint8Array>|undefined;
 	#inputNames : string[];
+	#sceneCache : AbstractRasterable|undefined;
 	constructor(ctx:PossiblyTUIAppContext, inputNames:string[]) {
 		super(ctx);
 		this.#stdin = ctx.stdin;
@@ -168,37 +168,50 @@ class WCAppInstance extends DemoAppInstance {
 	
 	_refreshTimer : number|undefined;
 	
+	_generateScene() : AbstractRasterable {
+		const now = new Date();
+		
+		const currentInputLine : [string,Style] =
+			this._appState.status == "done" ? ['Reached end of input!', ansi.BRIGHT_GREEN_TEXT] :
+			this._appState.status == "unstarted" ? ['', ansi.YELLOW_TEXT] :
+			[`Reading ${this._appState.currentInputName}`, ansi.YELLOW_TEXT];
+		
+		const textLines : [string,Style][] = [
+			[now.toString()                    ,ansi.UNDERLINED + ansi.BRIGHT_WHITE_TEXT + ansi.RED_BACKGROUND], // For demonstration's sake
+			currentInputLine,
+			[`Read ${this._appState.byteCount} bytes`   ,ansi.FAINT + ansi.BLUE_TEXT  ],
+			[`Read ${this._appState.lineCount} lines`   ,ansi.BOLD  + ansi.BLUE_TEXT  ],
+		];
+		const idealSize = {
+			x: textLines.map(l => l[0].length).reduce((a,b) => Math.max(a,b), 0),
+			y: textLines.length + 2,
+		}
+		let rast = createUniformRaster(idealSize, " ", ansi.RESET_FORMATTING);
+		for( let i=0; i<textLines.length; ++i ) {
+			rast = drawTextToRaster(rast, {x:0, y:i}, textLines[i][0], textLines[i][1]);
+		}
+		const border = makeSolidGenerator(" ", ansi.RED_BACKGROUND);
+		const content = new FixedRasterable(rast);
+		const bordered = makeBorderedAbstractRasterable(border, 1, content);
+		
+		return bordered;
+	}
+	
+	get _scene() : AbstractRasterable {
+		if( this.#sceneCache == undefined ) {
+			this.#sceneCache = this._generateScene();
+		}
+		return this.#sceneCache;
+	}
+	
+	rasterForSize(size: Vec2D<number>): TextRaster2 {
+		return this._scene.rasterForSize(size);
+	}
+	
 	_updateView() {
-		this._ctx.setScene({
-			toRaster: (minSize, maxSize) => {
-				const now = new Date();
-				
-				const currentInputLine : [string,Style] =
-					this._appState.status == "done" ? ['Reached end of input!', ansi.BRIGHT_GREEN_TEXT] :
-					this._appState.status == "unstarted" ? ['', ansi.YELLOW_TEXT] :
-					[`Reading ${this._appState.currentInputName}`, ansi.YELLOW_TEXT];
-				
-				const textLines : [string,Style][] = [
-					[now.toString()                    ,ansi.UNDERLINED + ansi.BRIGHT_WHITE_TEXT + ansi.RED_BACKGROUND], // For demonstration's sake
-					currentInputLine,
-					[`Read ${this._appState.byteCount} bytes`   ,ansi.FAINT + ansi.BLUE_TEXT  ],
-					[`Read ${this._appState.lineCount} lines`   ,ansi.BOLD  + ansi.BLUE_TEXT  ],
-				];
-				const idealSize = {
-					x: textLines.map(l => l[0].length).reduce((a,b) => Math.max(a,b), 0),
-					y: textLines.length + 2,
-				}
-				let rast = createUniformRaster(idealSize, " ", ansi.RESET_FORMATTING);
-				for( let i=0; i<textLines.length; ++i ) {
-					rast = drawTextToRaster(rast, {x:0, y:i}, textLines[i][0], textLines[i][1]);
-				}
-				const border = makeSolidGenerator(" ", ansi.RED_BACKGROUND);
-				const content = new FixedRasterable(rast);
-				const bordered = makeBorderedAbstractRasterable(border, 1, content);
-				
-				return rasterizeAbstractRasterableToSize(bordered, maxSize);
-			}
-		});
+		this.#sceneCache = undefined;
+		// Could cache the scene and invalidate it at this point.
+		this._ctx.setScene(this);
 	}
 	
 	_patchState(patch : Partial<WCAppState>) {
@@ -286,7 +299,7 @@ function simpleBordered(char:string, style:Style, interior:AbstractRasterable) :
 import { BDC_PROP_VALUES, LineStyle } from '../../lib/ts/termdraw/boxcharprops.ts';
 import BoxDrawr from '../../lib/ts/termdraw/BoxDrawr.ts';
 
-class SizedLineBorderRasterable implements SizedRasterable {
+class SizedLineBorderRasterable implements BoundedRasterable {
 	readonly bounds : AABB2D<number>;
 	readonly #bdcLineStyle : LineStyle;
 	readonly #lineStyle  : Style;
@@ -316,12 +329,14 @@ function lineBorder(bdcLineStyle:LineStyle, lineStyle:Style) : AbstractRasterabl
 	return {
 		bounds: {x0: -1, y0:-1, x1: 1, y1: 1},
 		pack() { return this; },
-		generateForSize(size:Vec2D<number>) {
-			return this.generateForRegion(sizeToBounds(size));
+		rasterableForSize(size:Vec2D<number>) {
+			return this.rasterableForRegion(sizeToBounds(size));
 		},
-		generateForRegion(region:AABB2D<number>) {
+		rasterableForRegion(region:AABB2D<number>) {
 			return new SizedLineBorderRasterable(region, bdcLineStyle, lineStyle);
-		}
+		},
+		regionToRaster: thisPackedRasterableRegionToRaster,
+		rasterForSize: thisAbstractRasterableToRasterForSize,
 	}
 }
 
@@ -332,36 +347,40 @@ function lineBordered(bdcLineStyle:LineStyle, lineStyle:Style, interior:Abstract
 	);
 }
 
-
-class BoxesAppInstance extends DemoAppInstance {
+class BoxesAppInstance extends DemoAppInstance implements SizedRasterGenerator {
 	constructor(ctx:PossiblyTUIAppContext) {
 		super(ctx);
-		ctx.setScene({
-			toRaster(minSize, maxSize) {
-				const border = makeSolidGenerator(" ", ansi.RED_BACKGROUND);
-				const treeBg = makeSolidGenerator(" ", ansi.BLUE_BACKGROUND);
-				
-				const welcomeSpan = mkTextRasterable([
-					{text:"Welcome to boxes!", style:ansi.FAINT+ansi.YELLOW_TEXT},
-				])
-				const sizeSpan = mkTextRasterable([
-					{text:"Screen size: ", style:ansi.WHITE_TEXT},
-					{text:maxSize.x +" x " +maxSize.y, style:ansi.BRIGHT_WHITE_TEXT},
-				]);
-				const texto = new AbstractFlexRasterable("columns", treeBg, [
-					{component: welcomeSpan, flexGrow: 0, flexShrink: 1},
-					{component: sizeSpan   , flexGrow: 0, flexShrink: 1},
-				]);
-				const tree = lineBordered(BDC_PROP_VALUES.DOUBLE, ansi.BOLD+ansi.BRIGHT_RED_TEXT, new AbstractFlexRasterable("columns", treeBg, [
-					{component: lineBordered(BDC_PROP_VALUES.LIGHT, ansi.WHITE_TEXT, texto), flexGrow: 0, flexShrink: 0},
-					// TODO: Instead of solid, make boxes
-					{component: lineBordered(BDC_PROP_VALUES.LIGHT, ansi.BOLD+ansi.RED_TEXT  , makeSolidGenerator("2", ansi.RED_TEXT  )), flexGrow: 1, flexShrink: 0},
-					{component: lineBordered(BDC_PROP_VALUES.LIGHT, ansi.BOLD+ansi.GREEN_TEXT, makeSolidGenerator("3", ansi.GREEN_TEXT)), flexGrow: 1, flexShrink: 0},
-					{component: lineBordered(BDC_PROP_VALUES.LIGHT, ansi.BOLD+ansi.BLUE_TEXT , makeSolidGenerator("4", ansi.BLUE_TEXT )), flexGrow: 1, flexShrink: 0},
-				]));
-				return rasterizeAbstractRasterableToSize(tree, maxSize);
-			}
-		})
+		
+		ctx.setScene(this);
+	}
+	
+	_buildScene(size:Vec2D<number>) : AbstractRasterable {
+		const border = makeSolidGenerator(" ", ansi.RED_BACKGROUND);
+		const treeBg = makeSolidGenerator(" ", ansi.BLUE_BACKGROUND);
+		
+		const welcomeSpan = mkTextRasterable([
+			{text:"Welcome to boxes!", style:ansi.FAINT+ansi.YELLOW_TEXT},
+		])
+		const sizeSpan = mkTextRasterable([
+			{text:"Screen size: ", style:ansi.WHITE_TEXT},
+			{text:size.x +" x " +size.y, style:ansi.BRIGHT_WHITE_TEXT},
+		]);
+		const texto = new AbstractFlexRasterable("columns", treeBg, [
+			{component: welcomeSpan, flexGrow: 0, flexShrink: 1},
+			{component: sizeSpan   , flexGrow: 0, flexShrink: 1},
+		]);
+		const tree = lineBordered(BDC_PROP_VALUES.DOUBLE, ansi.BOLD+ansi.BRIGHT_RED_TEXT, new AbstractFlexRasterable("columns", treeBg, [
+			{component: lineBordered(BDC_PROP_VALUES.LIGHT, ansi.WHITE_TEXT, texto), flexGrow: 0, flexShrink: 0},
+			// TODO: Instead of solid, make boxes
+			{component: lineBordered(BDC_PROP_VALUES.LIGHT, ansi.BOLD+ansi.RED_TEXT  , makeSolidGenerator("2", ansi.RED_TEXT  )), flexGrow: 1, flexShrink: 0},
+			{component: lineBordered(BDC_PROP_VALUES.LIGHT, ansi.BOLD+ansi.GREEN_TEXT, makeSolidGenerator("3", ansi.GREEN_TEXT)), flexGrow: 1, flexShrink: 0},
+			{component: lineBordered(BDC_PROP_VALUES.LIGHT, ansi.BOLD+ansi.BLUE_TEXT , makeSolidGenerator("4", ansi.BLUE_TEXT )), flexGrow: 1, flexShrink: 0},
+		]));
+		return tree;
+	}
+	
+	rasterForSize(size: Vec2D<number>): TextRaster2 {
+		return this._buildScene(size).rasterForSize(size);
 	}
 }
 

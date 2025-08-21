@@ -1,4 +1,3 @@
-import { assert } from "https://deno.land/std@0.165.0/testing/asserts.ts";
 import AABB2D from "./AABB2D.ts";
 import TextRaster2, { Style } from "./TextRaster2.ts";
 import Vec2D from "./Vec2D.ts";
@@ -33,8 +32,16 @@ import { blitToRaster, createUniformRaster } from "./textraster2utils.ts";
 /**
  * Component without any notion of size;
  */
-export interface AbstractRasterable {
+// Hmm: I don't really want to force all implementations to implement SizedRasterGenerator;
+// it is trivial enough to turn one of this into one of that.
+// Maybe I'll replace that with a generic wrapper thing,
+// which can also take care of memoization.
+export interface AbstractRasterable extends SizedRasterGenerator {
 	pack() : PackedRasterable;
+}
+
+export interface SizedRasterGenerator {
+	rasterForSize(size : Vec2D<number>) : TextRaster2;
 }
 
 export interface RegionRasterableGenerator {
@@ -43,7 +50,7 @@ export interface RegionRasterableGenerator {
 	 * result may be larger or smaller than the given region
 	 * and positioned differently; area is just a suggestion.
 	 */
-	generateForRegion(area : AABB2D<number>) : SizedRasterable
+	rasterableForRegion(area : AABB2D<number>) : BoundedRasterable
 }
 
 export interface SizedRasterableGenerator {
@@ -52,7 +59,7 @@ export interface SizedRasterableGenerator {
 	 * result may be larger or smaller than the given region;
 	 * it is a suggestion.
 	 */
-	generateForSize(size : Vec2D<number>) : SizedRasterable
+	rasterableForSize(size : Vec2D<number>) : BoundedRasterable
 }
 
 /**
@@ -68,18 +75,7 @@ export interface SizedRasterableGenerator {
  * because those bounds are the region of the raster that should
  * be filled with content.
  */
-export interface PackedRasterable extends SizedRasterableGenerator {
-	/**
-	 * Bounding box of this object, relative to its own origin,
-	 * which is usually arbirary and unimportant
-	 * (but maybe not always, which is why this isn't just a Vec2D
-	 * with the origin implied to be in the top-left corner).
-	 * i.e. the bounds oc a child element are *not*
-	 * relative to any ancestors' coordinate system!
-	 * Parents know where their children are, not the other way around.
-	 */
-	readonly bounds : AABB2D<number>;
-}
+export interface PackedRasterable extends SizedRasterableGenerator, BoundedRasterable {}
 
 /** Conceptually infinite object that can be asked to rasterize some section of itself */
 export interface RegionRasterable {
@@ -90,10 +86,18 @@ export interface RegionRasterable {
  * A thing that is conceptually 'all layed out' internally
  * and can be queried for an image of part of itself
  */
-export interface SizedRasterable extends RegionRasterable {
+export interface BoundedRasterable extends RegionRasterable {
 	/**
-	 * 'Natural' bounds of the thing, for packing purposes.
-	 * Does not limit the area that can be queried for raster data!
+	 * 'Natural' bounds of this object, for packing purposes.
+	 * These bounds do not limit the area that can be queried for raster data!
+	 * 
+	 * Bounds are relative to this object's own origin,
+	 * which is usually arbirary and unimportant
+	 * (but maybe not always, which is why this isn't just a Vec2D
+	 * with the origin implied to be in the top-left corner).
+	 * i.e. the bounds oc a child element are *not*
+	 * relative to any ancestors' coordinate system!
+	 * Parents know where their children are, not the other way around.
 	 */
 	readonly bounds : AABB2D<number>;
 }
@@ -119,7 +123,7 @@ export function rasterToSize(raster:TextRaster2, targetSize:Vec2D<number>) : Tex
 	}, raster);
 }
 
-export function rasterizeRasterableToSize(rasterable:SizedRasterable, targetSize:Vec2D<number>) : TextRaster2 {
+export function rasterizeRasterableToSize(rasterable:BoundedRasterable, targetSize:Vec2D<number>) : TextRaster2 {
 	const rcx : number = (rasterable.bounds.x0 + rasterable.bounds.x1) / 2;
 	const rcy : number = (rasterable.bounds.y0 + rasterable.bounds.y1) / 2;
 	const rast = rasterable.regionToRaster({
@@ -132,7 +136,7 @@ export function rasterizeRasterableToSize(rasterable:SizedRasterable, targetSize
 }
 
 export function rasterizePackedRasterableToSize(packrast:PackedRasterable, targetSize:Vec2D<number>) : TextRaster2 {
-	return rasterizeRasterableToSize(packrast.generateForSize(targetSize), targetSize);
+	return rasterizeRasterableToSize(packrast.rasterableForSize(targetSize), targetSize);
 }
 
 export function rasterizeAbstractRasterableToSize(abstrast:AbstractRasterable, targetSize:Vec2D<number>) : TextRaster2 {
@@ -148,13 +152,25 @@ function validateSize(size:Vec2D<number>) {
 
 //// Some building blocks
 
-// TODO: Review/test; this was originally copilot-generated
+/**
+ * Implement regionToRaster for PackedRasterables that
+ * don't know how to do that themselves.
+ */
+export function thisPackedRasterableRegionToRaster(this:PackedRasterable, bounds:AABB2D<number>) {
+	const inflated = this.rasterableForSize(boundsToSize(this.bounds));
+	// Hopefully inflated.bounds = this.bounds!
+	return inflated.regionToRaster(bounds);
+}
+
+export function thisAbstractRasterableToRasterForSize(this:AbstractRasterable, size:Vec2D<number>) {
+	return rasterizeAbstractRasterableToSize(this, size);
+}
 
 /**
  * Rasterable that makes no effort to conform to any given size,
  * and packs to the size of the raster.
  */
-export class FixedRasterable implements AbstractRasterable, PackedRasterable, SizedRasterable, RegionRasterableGenerator {
+export class FixedRasterable implements AbstractRasterable, PackedRasterable, BoundedRasterable, RegionRasterableGenerator {
 	#raster : TextRaster2;
 	#bounds : AABB2D<number>;
 	constructor(raster:TextRaster2) {
@@ -167,15 +183,16 @@ export class FixedRasterable implements AbstractRasterable, PackedRasterable, Si
 	get bounds() : AABB2D<number> {
 		return this.#bounds;
 	}
-	generateForSize(_size: Vec2D<number>): SizedRasterable {
+	rasterableForSize(_size: Vec2D<number>): BoundedRasterable {
 		return this;
 	}
-	generateForRegion(_area: AABB2D<number>): SizedRasterable {
+	rasterableForRegion(_area: AABB2D<number>): BoundedRasterable {
 		return this;
 	}
 	regionToRaster(_region: AABB2D<number>) : TextRaster2 {
 		return this.#raster;
 	}
+	rasterForSize = thisAbstractRasterableToRasterForSize;
 }
 
 export class AbstractBorderRasterable implements AbstractRasterable {
@@ -209,6 +226,8 @@ export class AbstractBorderRasterable implements AbstractRasterable {
 			bounds
 		);
 	}
+	
+	rasterForSize = thisAbstractRasterableToRasterForSize;
 }
 
 class PackedBorderRasterable implements PackedRasterable {
@@ -229,16 +248,16 @@ class PackedBorderRasterable implements PackedRasterable {
 		this.bounds = bounds;
 	}
 	
-	generateForSize(size : Vec2D<number>): SizedRasterable {
+	rasterableForSize(size : Vec2D<number>): BoundedRasterable {
 		const b = this.#borderWidth;
-		const bg = this.#backgroundGenerator.generateForSize(size);
+		const bg = this.#backgroundGenerator.rasterableForSize(size);
 		const innerBounds = {
 			x0: bg.bounds.x0 + b,
 			y0: bg.bounds.y0 + b,
 			x1: bg.bounds.x1 - b,
 			y1: bg.bounds.y1 - b,
 		};
-		const filledInner = this.#packedInner.generateForSize(boundsToSize(innerBounds));
+		const filledInner = this.#packedInner.rasterableForSize(boundsToSize(innerBounds));
 		return new SizedCompoundRasterable(
 			bg,
 			[
@@ -249,6 +268,9 @@ class PackedBorderRasterable implements PackedRasterable {
 			]
 		);
 	}
+	
+	regionToRaster = thisPackedRasterableRegionToRaster;
+	rasterForSize = thisAbstractRasterableToRasterForSize;
 }
 
 interface CompoundChild<T> {
@@ -256,11 +278,11 @@ interface CompoundChild<T> {
 	bounds: AABB2D<number>,
 }
 
-export class SizedCompoundRasterable implements SizedRasterable {
-	readonly #background : SizedRasterable;
-	readonly #children : CompoundChild<SizedRasterable>[];
+export class SizedCompoundRasterable implements BoundedRasterable {
+	readonly #background : BoundedRasterable;
+	readonly #children : CompoundChild<BoundedRasterable>[];
 	
-	constructor(background:SizedRasterable, children:CompoundChild<SizedRasterable>[]) {
+	constructor(background:BoundedRasterable, children:CompoundChild<BoundedRasterable>[]) {
 		this.#background = background;
 		this.#children = children;
 	}
@@ -278,6 +300,8 @@ export class SizedCompoundRasterable implements SizedRasterable {
 		}
 		return rast;
 	}
+	
+	rasterForSize = thisAbstractRasterableToRasterForSize;
 }
 
 const ZERO_BOUNDS = {x0:0, y0:0, x1:0, y1: 0};
@@ -291,12 +315,14 @@ export class PaddingRasterable implements AbstractRasterable, PackedRasterable {
 	pack(): PackedRasterable {
 		return this;
 	}
-	generateForSize(size: Vec2D<number>): SizedRasterable {
+	rasterableForSize(size: Vec2D<number>): BoundedRasterable {
 		return {
 			bounds: {x0:0, y0: 0, x1: size.x, y1: size.y},
 			regionToRaster: this.#background.regionToRaster.bind(this.#background),
 		};
 	}
+	regionToRaster = thisPackedRasterableRegionToRaster;
+	rasterForSize = thisAbstractRasterableToRasterForSize;
 }
 
 // TODO: 'flex' rasterable, which lays children out in rows and/or columns,
@@ -320,7 +346,8 @@ export class PackedFlexRasterable implements PackedRasterable {
 		this.#background = background;
 		this.#children = children;
 	}
-	generateForSize(size: Vec2D<number>): SizedRasterable {
+	
+	rasterableForSize(size: Vec2D<number>): BoundedRasterable {
 		validateSize(size);
 		const horiz = this.#direction == "rows";
 		
@@ -360,7 +387,7 @@ export class PackedFlexRasterable implements PackedRasterable {
 		// Hmm: Maybe the thing to do is to turn each row into
 		// a component, then pack/expand the rows.
 		
-		const sizedChildren : CompoundChild<SizedRasterable>[] = [];
+		const sizedChildren : CompoundChild<BoundedRasterable>[] = [];
 		
 		let across = 0;
 		for( const row of rows ) {
@@ -404,7 +431,7 @@ export class PackedFlexRasterable implements PackedRasterable {
 						x1: cX + cFilledWidth,
 						y1: cY + cFilledHeight,
 					},
-					component: child.component.generateForSize({x: cFilledWidth, y: cFilledHeight})
+					component: child.component.rasterableForSize({x: cFilledWidth, y: cFilledHeight})
 				});
 				along += filledLength;
 			}
@@ -420,6 +447,8 @@ export class PackedFlexRasterable implements PackedRasterable {
 			sizedChildren
 		);
 	}
+	
+	regionToRaster = thisPackedRasterableRegionToRaster;
 }
 export class AbstractFlexRasterable implements AbstractRasterable {
 	readonly #direction  : FlexDirection;
@@ -454,6 +483,8 @@ export class AbstractFlexRasterable implements AbstractRasterable {
 		}
 		return new PackedFlexRasterable(this.#direction, {x0:0, y0:0, x1:totalWidth, y1:totalHeight}, this.#background, packedChildren);
 	}
+	
+	rasterForSize = thisAbstractRasterableToRasterForSize;
 }
 
 export function makeSolidGenerator(char:string, style:Style) : AbstractRasterable&PackedRasterable&SizedRasterableGenerator&RegionRasterable {
@@ -461,7 +492,7 @@ export function makeSolidGenerator(char:string, style:Style) : AbstractRasterabl
 	return {
 		bounds: {x0:0, y0:0, x1:0, y1:0},
 		pack() { return this; },
-		generateForSize(size:Vec2D<number>) {
+		rasterableForSize(size:Vec2D<number>) {
 			return {
 				bounds: {x0: 0, y0: 0, x1: size.x, y1: size.y},
 				regionToRaster(region:AABB2D<number>) {
@@ -472,7 +503,8 @@ export function makeSolidGenerator(char:string, style:Style) : AbstractRasterabl
 		regionToRaster(region:AABB2D<number>) {
 			return createUniformRaster(boundsToSize(region), char, style);
 		},
-	}
+		rasterForSize: thisAbstractRasterableToRasterForSize
+	};
 }
 
 export function makeBorderedAbstractRasterable(borderDrawer:SizedRasterableGenerator, borderWidth:number, interior:AbstractRasterable) {

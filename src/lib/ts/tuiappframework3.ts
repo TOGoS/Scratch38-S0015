@@ -7,6 +7,7 @@ import { inputEvents } from '../../lib/ts/terminput/inputeventparser.ts';
 import { createUniformRaster, textRaster2ToDrawCommands, textRaster2ToLines } from '../../lib/ts/termdraw/textraster2utils.ts';
 import * as ansi from '../../lib/ts/termdraw/ansi.ts';
 import { toAnsi } from '../../lib/ts/termdraw/ansi.ts';
+import { SizedRasterGenerator } from './termdraw/components2.ts';
 
 //// Some types that could be librarified if this all works
 
@@ -19,10 +20,6 @@ export interface Waitable<R> {
 	wait() : Promise<R>;
 }
 
-export interface Rasterable {
-	toRaster(minSize:Vec2D<number>, maxSize:Vec2D<number>) : TextRaster2;
-}
-
 /** Conext that can be used to instantiate both TUI and not-quite-TUI apps */
 export interface PossiblyTUIAppContext {
 	// Hmm: Directly using Readable/WritableStreams might not be the most useful thing;
@@ -32,7 +29,7 @@ export interface PossiblyTUIAppContext {
 	//stderr : WritableStream<Uint8Array>;
 	writeOut(text:string) : Promise<void>;
 	/** Specify what should be drawn on the screen. */
-	setScene(scene:Rasterable) : void;
+	setScene(scene:SizedRasterGenerator) : void;
 }
 
 export class AbstractWaitable<Result> implements Waitable<Result> {
@@ -116,7 +113,7 @@ export async function runTuiApp<Result>(
 		exit() : Promise<void>;
 		writeOut(text:string) : Promise<void>;
 		setScreenSize(screenSize:Vec2D<number>) : void;
-		setScene(scene:Rasterable) : void;
+		setScene(scene:SizedRasterGenerator) : void;
 	} = opts.outputMode == "lines" ? (() => {
 		let outProm = Promise.resolve();
 		let screenSize : Vec2D<number> = {x: 20, y: 10};
@@ -130,8 +127,8 @@ export async function runTuiApp<Result>(
 			setScreenSize(newScreenSize:Vec2D<number>) {
 				screenSize = newScreenSize;
 			},
-			setScene(scene:Rasterable) {
-				const outCommands = textRaster2ToLines(scene.toRaster({x:0,y:0}, screenSize));
+			setScene(scene:SizedRasterGenerator) {
+				const outCommands = textRaster2ToLines(scene.rasterForSize(screenSize));
 				for( const command of outCommands ) {
 					outProm = outProm.then(() => ctx.stdout.write(textEncoder.encode(toAnsi(command))));
 				}
@@ -139,8 +136,8 @@ export async function runTuiApp<Result>(
 			}
 		}
 	})() : (() => {
-		let currentScene : Rasterable = {
-			toRaster(size:Vec2D<number>) : TextRaster2 {
+		let currentScene : SizedRasterGenerator = {
+			rasterForSize(size:Vec2D<number>) : TextRaster2 {
 				return createUniformRaster(size, " ", ansi.RESET_FORMATTING);
 			}
 		}
@@ -150,7 +147,7 @@ export async function runTuiApp<Result>(
 		
 		const renderStateMan = new TUIRenderStateManager(ctx.stdout, async (out) => {
 			await outProm;
-			const raster = currentScene.toRaster(screenSize, screenSize);
+			const raster = currentScene.rasterForSize(screenSize);
 			const outCommands = textRaster2ToDrawCommands(raster);
 			for( const command of outCommands ) {
 				await out.write(textEncoder.encode(toAnsi(command)));
@@ -180,7 +177,7 @@ export async function runTuiApp<Result>(
 				screenSize = newScreenSize;
 				if( inTui ) renderStateMan.requestRedraw();
 			},
-			setScene(scene:Rasterable) {
+			setScene(scene:SizedRasterGenerator) {
 				currentScene = scene;
 				setMode(true);
 				renderStateMan.requestRedraw();
