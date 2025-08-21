@@ -471,6 +471,31 @@ abstract 'status data' objects to rasterable components:
 
 ![Screenshot showing incremental progress since take1](http://picture-files.nuke24.net/uri-res/raw/urn:bitprint:DMBCGFSZUI7ZENIXNFC3SNSJGTHM4MI6.RVCR642JM4PPBGWZABFLCJ4WR2WYAMNBTWSHTMY/20250821T13-StatusMockup-take2.png)
 
+### Why isn't the crap centered
+
+![Ugh](http://picture-files.nuke24.net/uri-res/raw/urn:bitprint:FBNAWDP6XWXGXTKGQH4IA2MDI5WYMW5U.QCYB6P2K5EV22MFV4XTUSEXHAW7VSIRSUCYO45Q/20250821T18-UncenteredBoxes.png)
+
+That column of boxes should be centered within the big red box,
+with blue stuff on both sides.
+
+How it's supposed to work:
+- The flex column thing figures out how big it
+  and all its children can be, and creates a `SizedCompoundRasterable`
+  that is that size (well, it has a `#background` that knows its size)
+- Later, the parent component will look at the bounds of that thing
+  and the area it wants to fill, and ask the `SizedCompoundRasterable`
+  for a raster of the needed size...aaand it is up to the inner component
+  to convert that size to a region, which could be centered or not.
+  - Does `SizedCompoundRasterable` do that correctly?
+  - Maybe not, given that `rasterForSize = thisAbstractRasterableToRasterForSize`
+  - Fixing that, so that `rasterForSize = thisBoundedRegionRasterableCenteredRasterForSize`,
+    didn't result in things being centered.
+
+It's kind of hard to debug this stuff.
+
+I should probably remove the stuff where everything implements everything,
+because I think it is causing confusion.
+
 ### To-do
 
 #### Demo improvements
@@ -485,6 +510,8 @@ abstract 'status data' objects to rasterable components:
     asks the inner component for a raster of that region,
     and gets a raster where the content is roughly centered.
     But content always ends up in the top-left.
+- [ ] Refactor screen size to be a reactive variable thing
+- [ ] `--console-size=${x},${y}` to force a certain screen size
 - [ ] When many messages, try to show the last ones
 - [ ] flexShrink: can it be used to prioritize
   what gets removed entirely, not just how much,

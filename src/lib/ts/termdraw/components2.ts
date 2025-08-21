@@ -161,6 +161,10 @@ export function thisAbstractRasterableToRasterForSize(this:AbstractRasterable, s
 export function thisRegionRasterableRasterForSize(this:RegionRasterable, size:Vec2D<number>) {
 	return this.rasterForRegion(sizeToBounds(size));
 }
+export function thisBoundedRegionRasterableCenteredRasterForSize(this:RegionRasterable&BoundedRasterable, size:Vec2D<number>) {
+	return this.rasterForRegion(centeredExpandedBounds(this.bounds, size));
+}
+
 
 /**
  * Rasterable that makes no effort to conform to any given size,
@@ -320,7 +324,7 @@ export class SizedCompoundRasterable implements BoundedRasterable {
 		return rast;
 	}
 	
-	rasterForSize = thisAbstractRasterableToRasterForSize;
+	rasterForSize = thisBoundedRegionRasterableCenteredRasterForSize;
 }
 
 const ZERO_BOUNDS = {x0:0, y0:0, x1:0, y1: 0};
