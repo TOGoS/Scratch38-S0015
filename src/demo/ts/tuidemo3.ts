@@ -266,6 +266,22 @@ class WCAppInstance extends DemoAppInstance implements SizedRasterable {
 
 const fixedSpace = new FixedRasterable(textToRaster(" ", ""));
 const flexySpace = makeSolidGenerator(" ", "");
+const flexyOneSpace = new PaddingRasterable({x0:0, y0:0, x1:1, y1:1}, flexySpace);
+
+function mkSimpleTextRasterable(spans:{text:string, style:Style}[]) : AbstractRasterable {
+	return new AbstractFlexRasterable(
+		"rows",
+		makeSolidGenerator(" ",ansi.BLACK_BACKGROUND),
+		spans.map(span => {
+			const rast = textToRaster(span.text, span.style);
+			return {
+				component: new FixedRasterable(rast),
+				flexGrow: 0,
+				flexShrink: 0
+			}
+		}),
+	);
+}
 
 function mkTextRasterable(spans:{text:string, style:Style}[]) : AbstractRasterable {
 	return new AbstractFlexRasterable("rows", makeSolidGenerator(" ",ansi.BLACK_BACKGROUND), [
@@ -403,16 +419,20 @@ function statusDataToAR(thing:StatusData) : AbstractRasterable {
 	components.push({
 		flexGrow: 1,
 		flexShrink: 0,
-		component: mkTextRasterable([
-			{text: thing.name, style: ansi.BRIGHT_WHITE_TEXT},
-			{
-				text: thing.status ?? "?",
-				style:
-					thing.status == "online" ? ansi.BRIGHT_GREEN_TEXT :
-					thing.status == "offline" ? ansi.RED_TEXT :
-					ansi.YELLOW_TEXT
-			}
-		])
+		component: new AbstractFlexRasterable("rows",
+			blackBackground,
+			[
+				{ component: mkSimpleTextRasterable([{text: thing.name, style: ansi.BRIGHT_WHITE_TEXT}]), flexGrow: 0, flexShrink: 0 },
+				{ component: flexyOneSpace, flexGrow: 1, flexShrink: 0 },
+				{ component: mkSimpleTextRasterable([{
+					text: thing.status ?? "?",
+					style:
+						thing.status == "online" ? ansi.BRIGHT_GREEN_TEXT :
+						thing.status == "offline" ? ansi.RED_TEXT :
+						ansi.YELLOW_TEXT
+				}]), flexGrow: 0, flexShrink: 0 },
+			]
+		)
 	});
 	components.push({
 		flexGrow: 1,
@@ -451,6 +471,7 @@ function statusDatasToAR(things:StatusData[]) : AbstractRasterable {
 		flexGrow: 0,
 		component: protoBorder,
 	}, things.map(sd => ({
+		// TODO: Allow them to grow across, but not along!
 		flexGrow: 0,
 		flexShrink: 1,
 		component: statusDataToAR(sd),
