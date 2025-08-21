@@ -2,7 +2,7 @@ import AABB2D from '../../lib/ts/termdraw/AABB2D.ts';
 import Vec2D from '../../lib/ts/termdraw/Vec2D.ts';
 
 import * as ansi from '../../lib/ts/termdraw/ansi.ts';
-import { AbstractFlexRasterable, AbstractRasterable, BoundedRasterable, boundsToSize, FixedRasterable, FlexChild, makeBorderedAbstractRasterable, makeSolidGenerator, PackedRasterable, RegionRasterable, RegionRasterableGenerator, SizedRasterGenerator, sizeToBounds, thisAbstractRasterableToRasterForSize, thisPackedRasterableRegionToRaster } from '../../lib/ts/termdraw/components2.ts';
+import { AbstractFlexRasterable, AbstractRasterable, BoundedRasterable, boundsToSize, FixedRasterable, FlexChild, makeBorderedAbstractRasterable, makeSolidGenerator, PackedRasterable, RegionRasterable, RegionFillingRasterableGenerator, SizedRasterable, sizeToBounds, thisAbstractRasterableToRasterForSize, thisPackedRasterableRegionToRaster, PaddingRasterable } from '../../lib/ts/termdraw/components2.ts';
 import TextRaster2, { Style } from '../../lib/ts/termdraw/TextRaster2.ts';
 import { createUniformRaster, drawTextToRaster, textToRaster } from '../../lib/ts/termdraw/textraster2utils.ts';
 import KeyEvent from '../../lib/ts/terminput/KeyEvent.ts';
@@ -139,7 +139,7 @@ interface WCAppState {
 	status : "unstarted"|"reading"|"done";
 }
 
-class WCAppInstance extends DemoAppInstance implements SizedRasterGenerator {
+class WCAppInstance extends DemoAppInstance implements SizedRasterable {
 	#stdin : ReadableStream<Uint8Array>|undefined;
 	#inputNames : string[];
 	#sceneCache : AbstractRasterable|undefined;
@@ -309,7 +309,7 @@ class SizedLineBorderRasterable implements BoundedRasterable {
 		this.#bdcLineStyle = bdcLineStyle;
 		this.#lineStyle = lineStyle;
 	}
-	regionToRaster(region: AABB2D<number>): TextRaster2 {
+	rasterForRegion(region: AABB2D<number>): TextRaster2 {
 		const size = boundsToSize(region);
 		const boxDrawr = new BoxDrawr(size.x, size.y);
 		const x0 = this.bounds.x0 - region.x0;
@@ -326,17 +326,17 @@ class SizedLineBorderRasterable implements BoundedRasterable {
 }
 
 // TODO: Use this to draw some cool bordered boxes
-function lineBorder(bdcLineStyle:LineStyle, lineStyle:Style) : AbstractRasterable&PackedRasterable&RegionRasterableGenerator {
+function lineBorder(bdcLineStyle:LineStyle, lineStyle:Style) : AbstractRasterable&PackedRasterable&RegionFillingRasterableGenerator {
 	return {
 		bounds: {x0: -1, y0:-1, x1: 1, y1: 1},
 		pack() { return this; },
-		rasterableForSize(size:Vec2D<number>) {
-			return this.rasterableForRegion(sizeToBounds(size));
+		fillSize(size:Vec2D<number>) {
+			return this.fillRegion(sizeToBounds(size));
 		},
-		rasterableForRegion(region:AABB2D<number>) {
+		fillRegion(region:AABB2D<number>) {
 			return new SizedLineBorderRasterable(region, bdcLineStyle, lineStyle);
 		},
-		regionToRaster: thisPackedRasterableRegionToRaster,
+		rasterForRegion: thisPackedRasterableRegionToRaster,
 		rasterForSize: thisAbstractRasterableToRasterForSize,
 	}
 }
@@ -352,9 +352,9 @@ const LINE_BORDER_PLACEHOLDER = "?"; // TODO: Pick some placeholder char, and ac
 
 const blackBackground = makeSolidGenerator(" ", ansi.BLACK_BACKGROUND);
 const blueBackground = makeSolidGenerator(" ", ansi.BLACK_BACKGROUND);
-const protoBorder = makeSolidGenerator(LINE_BORDER_PLACEHOLDER, ansi.BRIGHT_CYAN_TEXT);
+const protoBorder = new PaddingRasterable({x0:0, y0:0, x1:1, y1:1}, makeSolidGenerator(LINE_BORDER_PLACEHOLDER, ansi.BRIGHT_CYAN_TEXT));
 
-class BoxesAppInstance extends DemoAppInstance implements SizedRasterGenerator {
+class BoxesAppInstance extends DemoAppInstance implements SizedRasterable {
 	constructor(ctx:PossiblyTUIAppContext) {
 		super(ctx);
 		
@@ -424,11 +424,12 @@ function statusDataToAR(thing:StatusData) : AbstractRasterable {
 			}
 		])
 	});
+	const messagesChildren : FlexChild<AbstractRasterable>[] = [];
 	// TODO: Put messages in its own area that when shrunk
 	// just shows fewer of them; might need to add a 'gravity' prop or something
 	for( const msg of thing.recentMessages ) {
-		components.push({
-			flexGrow: 1,
+		messagesChildren.push({
+			flexGrow: 0,
 			flexShrink: 1,
 			// TODO: Show the most recent message in different color
 			// so I can check that sorting is working
@@ -437,22 +438,26 @@ function statusDataToAR(thing:StatusData) : AbstractRasterable {
 			])}
 		);
 	}
-	const treeBg = makeSolidGenerator(" ", ansi.BLUE_BACKGROUND);
-	return new AbstractFlexRasterable("columns", treeBg, components);
+	components.push({
+		flexGrow: 0,
+		flexShrink: 1,
+		component: new AbstractFlexRasterable("columns", blueBackground, messagesChildren),
+	})
+	return new AbstractFlexRasterable("columns", blueBackground, components);
 }
 function statusDatasToAR(things:StatusData[]) : AbstractRasterable {
 	return makeSeparatedFlex("columns", blackBackground, {
 		flexShrink: 0,
 		flexGrow: 0,
-		component: blueBackground,
+		component: protoBorder,
 	}, things.map(sd => ({
-		flexGrow: 1,
+		flexGrow: 0,
 		flexShrink: 1,
 		component: statusDataToAR(sd),
 	})));
 }
 
-class StatusMockupAppInstance extends DemoAppInstance implements SizedRasterGenerator {
+class StatusMockupAppInstance extends DemoAppInstance implements SizedRasterable {
 	#statusDatas : StatusData[];
 	
 	constructor(ctx:PossiblyTUIAppContext) {

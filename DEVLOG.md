@@ -455,12 +455,29 @@ abstract 'status data' objects to rasterable components:
 
 ![Screenshot showing a very shoddy, but non-crashing, mockup of a dashboard showing statuses of 'bill' and 'ted' devices](http://picture-files.nuke24.net/uri-res/raw/urn:bitprint:32UASPAPQJ7SETR7LMWMJF2X32VOE6IF.G4Y7ZVV5DENC3ILVWCUEEF4QSEBPHCPP4RGOLLY/20250821T12-StatusMockup-take1.png)
 
+### Status Mockup, take 2
+
+- Renamed `regionToRaster` to `rasterForRegion`.
+  It is conceptually different, but this wasn't obvious based on the name,
+  and in practice, it might not matter.  If you ask something that
+  doesn't know its size to generate a raster, maybe it's fine if that
+  is the same as telling it that's what its bounds should be and then
+  generationg a raster for that region.
+- Padding is no longer completely abstract - it has a size.
+  - But it is becoming clear that how it grows X-wise and Y-wise should maybe be different things,
+    since these 'horizontal rules' or whatever would be okay expanding X-wise,
+	 but don't want to expand Y-wise.
+  - Maybe there should be separate `flexGrowAlong` and `flexGrowAcross` props?
+
+![Screenshot showing incremental progress since take1](http://picture-files.nuke24.net/uri-res/raw/urn:bitprint:DMBCGFSZUI7ZENIXNFC3SNSJGTHM4MI6.RVCR642JM4PPBGWZABFLCJ4WR2WYAMNBTWSHTMY/20250821T13-StatusMockup-take2.png)
+
 ### To-do
 
 #### Demo improvements
 
-- [ ] Actually draw borders!
-- [ ] Padding so that status boxes aren't stretched
+- [X] Actually draw borders!
+- [\] Padding so that status boxes aren't stretched
+  - Implemented by respecting `flexGrow: 0`
 - [ ] When many messages, try to show the last ones
 - [ ] flexShrink: can it be used to prioritize
   what gets removed entirely, not just how much,
