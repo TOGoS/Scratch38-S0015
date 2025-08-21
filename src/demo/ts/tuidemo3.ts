@@ -549,7 +549,15 @@ class StatusMockupAppInstance extends DemoAppInstance implements SizedRasterable
 	}
 	
 	_buildScene(_size:Vec2D<number>) : AbstractRasterable {
-		return makeBorderedAbstractRasterable(protoBorder, 1, statusDatasToAR(this.#statusDatas));
+		return new AbstractFlexRasterable("columns", blackBackground, [
+			{
+				component: makeBorderedAbstractRasterable(protoBorder, 1, statusDatasToAR(this.#statusDatas)),
+				flexGrowAlong: 0,
+				flexGrowAcross: 0,
+				flexShrinkAcross: 0,
+				flexShrinkAlong: 0,
+			}
+		]);
 	}
 	
 	rasterForSize(size: Vec2D<number>): TextRaster2 {
