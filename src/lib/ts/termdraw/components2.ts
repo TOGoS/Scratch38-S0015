@@ -346,7 +346,7 @@ export class PaddingRasterable implements AbstractRasterable, PackedRasterable, 
 }
 
 // TODO: right/left/up/down
-export type FlexDirection = "rows"|"columns"|"right"|"down";
+export type FlexDirection = "right"|"down";
 export interface FlexChild<T> {
 	component       : T;
 	flexGrowAlong   : number;
@@ -374,7 +374,7 @@ export class PackedFlexRasterable implements PackedRasterable {
 	
 	fillSize(size: Vec2D<number>): BoundedRasterable {
 		validateSize(size);
-		const horiz = this.#direction == "rows";
+		const horiz = this.#direction == "right";
 		
 		const rows = [];
 		const boxWidth  = size.x;
@@ -479,17 +479,18 @@ export class PackedFlexRasterable implements PackedRasterable {
 	
 	rasterForRegion = thisPackedRasterableRegionToRaster;
 }
-// TODO: A way to indicate what to do when there'
+
+// TODO: Replace with function FlexParent (an options/properties object) -> AbstractRasterable
 export class AbstractFlexRasterable implements AbstractRasterable {
 	// TODO: Replace with along and across directions
-	readonly #direction  : FlexDirection;
+	readonly #along  : FlexDirection;
 	readonly #background : RegionRasterable;
 	readonly #children   : FlexChild<AbstractRasterable>[];
 	
-	constructor(direction:FlexDirection, background:RegionRasterable, children:FlexChild<AbstractRasterable>[]) {
+	constructor(along:FlexDirection, background:RegionRasterable, children:FlexChild<AbstractRasterable>[]) {
 		this.#children   = children  ;
 		this.#background = background;
-		this.#direction  = direction ;
+		this.#along  = along ;
 	}
 	pack(): PackedRasterable {
 		const packedChildren = this.#children.map(c => ({
@@ -501,7 +502,7 @@ export class AbstractFlexRasterable implements AbstractRasterable {
 		}));
 		let totalWidth = 0;
 		let totalHeight = 0;
-		if( this.#direction == "rows" ) {
+		if( this.#along == "right" ) {
 			for( const child of packedChildren ) {
 				const bounds = child.component.bounds;
 				totalWidth += bounds.x1 - bounds.x0;
@@ -514,7 +515,7 @@ export class AbstractFlexRasterable implements AbstractRasterable {
 				totalHeight += bounds.y1 - bounds.y0;
 			}
 		}
-		return new PackedFlexRasterable(this.#direction, {x0:0, y0:0, x1:totalWidth, y1:totalHeight}, this.#background, packedChildren);
+		return new PackedFlexRasterable(this.#along, {x0:0, y0:0, x1:totalWidth, y1:totalHeight}, this.#background, packedChildren);
 	}
 	
 	rasterForSize = thisAbstractRasterableToRasterForSize;

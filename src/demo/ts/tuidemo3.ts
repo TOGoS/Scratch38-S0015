@@ -278,7 +278,7 @@ const oneCharPad = {
 
 function mkSimpleTextRasterable(spans:{text:string, style:Style}[], background=blackBackground) : AbstractRasterable {
 	return new AbstractFlexRasterable(
-		"rows",
+		"right",
 		background,
 		spans.map(span => {
 			const rast = textToRaster(span.text, span.style);
@@ -294,7 +294,7 @@ function mkSimpleTextRasterable(spans:{text:string, style:Style}[], background=b
 }
 
 function mkTextRasterable(spans:{text:string, style:Style}[], background=blackBackground) : AbstractRasterable {
-	return new AbstractFlexRasterable("rows", background, [
+	return new AbstractFlexRasterable("right", background, [
 		oneCharPad,
 		...spans.map(span => {
 			const rast = textToRaster(span.text, span.style);
@@ -409,11 +409,11 @@ class BoxesAppInstance extends DemoAppInstance implements SizedRasterable {
 			flexShrinkAlong: 1,
 			flexShrinkAcross: 1,
 		};
-		const texto = new AbstractFlexRasterable("columns", treeBg, [
+		const texto = new AbstractFlexRasterable("down", treeBg, [
 			{component: welcomeSpan, ...contProps},
 			{component: sizeSpan   , ...contProps},
 		]);
-		const tree = lineBordered(BDC_PROP_VALUES.DOUBLE, ansi.BOLD+ansi.BRIGHT_RED_TEXT, new AbstractFlexRasterable("columns", treeBg, [
+		const tree = lineBordered(BDC_PROP_VALUES.DOUBLE, ansi.BOLD+ansi.BRIGHT_RED_TEXT, new AbstractFlexRasterable("down", treeBg, [
 			{component: lineBordered(BDC_PROP_VALUES.LIGHT, ansi.WHITE_TEXT, texto), ...contProps},
 			// TODO: Instead of solid, make boxes
 			{component: lineBordered(BDC_PROP_VALUES.LIGHT, ansi.BOLD+ansi.RED_TEXT  , makeSolidGenerator("2", ansi.RED_TEXT  )), ...padProps},
@@ -440,7 +440,7 @@ function statusDataToAR(thing:StatusData) : AbstractRasterable {
 	// Note that along = down, across = L-R
 	// Status line
 	components.push({
-		component: new AbstractFlexRasterable("rows",
+		component: new AbstractFlexRasterable("right",
 			blackBackground,
 			[
 				oneCharPad,
@@ -500,16 +500,16 @@ function statusDataToAR(thing:StatusData) : AbstractRasterable {
 		});
 	}
 	components.push({
-		component: new AbstractFlexRasterable("columns", blueBackground, messagesChildren),
+		component: new AbstractFlexRasterable("down", blueBackground, messagesChildren),
 		flexGrowAlong: 0,
 		flexGrowAcross: 1,
 		flexShrinkAlong: 1,
 		flexShrinkAcross: 1,
 	})
-	return new AbstractFlexRasterable("columns", blueBackground, components);
+	return new AbstractFlexRasterable("down", blueBackground, components);
 }
 function statusDatasToAR(things:StatusData[]) : AbstractRasterable {
-	return makeSeparatedFlex("columns", blackBackground, {
+	return makeSeparatedFlex("down", blackBackground, {
 		component: protoBorder,
 		flexGrowAlong: 0,
 		flexGrowAcross: 1,
@@ -549,7 +549,7 @@ class StatusMockupAppInstance extends DemoAppInstance implements SizedRasterable
 	}
 	
 	_buildScene(_size:Vec2D<number>) : AbstractRasterable {
-		return new AbstractFlexRasterable("columns", blackBackground, [
+		return new AbstractFlexRasterable("down", blackBackground, [
 			{
 				component: makeBorderedAbstractRasterable(protoBorder, 1, statusDatasToAR(this.#statusDatas)),
 				flexGrowAlong: 0,
