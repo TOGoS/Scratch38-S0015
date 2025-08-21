@@ -1,10 +1,12 @@
 import AABB2D from '../../lib/ts/termdraw/AABB2D.ts';
-import Vec2D from '../../lib/ts/termdraw/Vec2D.ts';
-
 import * as ansi from '../../lib/ts/termdraw/ansi.ts';
-import { AbstractFlexRasterable, AbstractRasterable, BoundedRasterable, boundsToSize, FixedRasterable, FlexChild, makeBorderedAbstractRasterable, makeSolidGenerator, PackedRasterable, RegionRasterable, RegionFillingRasterableGenerator, SizedRasterable, sizeToBounds, thisAbstractRasterableToRasterForSize, thisPackedRasterableRegionToRaster, PaddingRasterable } from '../../lib/ts/termdraw/components2.ts';
+import { boundsToSize, sizeToBounds } from '../../lib/ts/termdraw/boundsutils.ts';
+import { BDC_PROP_VALUES, LineStyle } from '../../lib/ts/termdraw/boxcharprops.ts';
+import BoxDrawr from '../../lib/ts/termdraw/BoxDrawr.ts';
+import { AbstractFlexRasterable, AbstractRasterable, BoundedRasterable, FixedRasterable, FlexChild, makeBorderedAbstractRasterable, makeSeparatedFlex, makeSolidGenerator, PackedRasterable, PaddingRasterable, RegionFillingRasterableGenerator, SizedRasterable, thisAbstractRasterableToRasterForSize, thisPackedRasterableRegionToRaster } from '../../lib/ts/termdraw/components2.ts';
 import TextRaster2, { Style } from '../../lib/ts/termdraw/TextRaster2.ts';
 import { createUniformRaster, drawTextToRaster, textToRaster } from '../../lib/ts/termdraw/textraster2utils.ts';
+import Vec2D from '../../lib/ts/termdraw/Vec2D.ts';
 import KeyEvent from '../../lib/ts/terminput/KeyEvent.ts';
 import { AbstractAppInstance, PossiblyTUIAppContext, PossiblyTUIAppSpawner, runTuiApp, TUIAppRunOpts, Waitable } from '../../lib/ts/tuiappframework3.ts';
 
@@ -186,7 +188,7 @@ class WCAppInstance extends DemoAppInstance implements SizedRasterable {
 			x: textLines.map(l => l[0].length).reduce((a,b) => Math.max(a,b), 0),
 			y: textLines.length + 2,
 		}
-		let rast = createUniformRaster(idealSize, " ", ansi.RESET_FORMATTING);
+		let rast = createUniformRaster(idealSize, " ", ansi.BLUE_BACKGROUND);
 		for( let i=0; i<textLines.length; ++i ) {
 			rast = drawTextToRaster(rast, {x:0, y:i}, textLines[i][0], textLines[i][1]);
 		}
@@ -321,10 +323,6 @@ function simpleBordered(char:string, style:Style, interior:AbstractRasterable) :
 	return makeBorderedAbstractRasterable(makeSolidGenerator(char, style), 1, interior)
 }
 
-import { BDC_PROP_VALUES, LineStyle } from '../../lib/ts/termdraw/boxcharprops.ts';
-import BoxDrawr from '../../lib/ts/termdraw/BoxDrawr.ts';
-import { makeSeparatedFlex } from '../../lib/ts/termdraw/components2.ts';
-
 class SizedLineBorderRasterable implements BoundedRasterable {
 	readonly bounds : AABB2D<number>;
 	readonly #bdcLineStyle : LineStyle;
@@ -376,7 +374,7 @@ function lineBordered(bdcLineStyle:LineStyle, lineStyle:Style, interior:Abstract
 const LINE_BORDER_PLACEHOLDER = "?"; // TODO: Pick some placeholder char, and actually replace it with line borders
 
 const blackBackground = makeSolidGenerator(" ", ansi.BLACK_BACKGROUND);
-const blueBackground = makeSolidGenerator(" ", ansi.BLACK_BACKGROUND);
+const blueBackground = makeSolidGenerator(".", ansi.BLUE_BACKGROUND);
 const protoBorder = new PaddingRasterable({x0:0, y0:0, x1:1, y1:1}, makeSolidGenerator(LINE_BORDER_PLACEHOLDER, ansi.BRIGHT_CYAN_TEXT));
 
 class BoxesAppInstance extends DemoAppInstance implements SizedRasterable {
@@ -399,7 +397,7 @@ class BoxesAppInstance extends DemoAppInstance implements SizedRasterable {
 		]);
 		const contProps = {
 			flexGrowAlong: 0,
-			flexGrowAcross: 1,
+			flexGrowAcross: 0,
 			flexShrinkAlong: 0,
 			flexShrinkAcross: 0,
 		};
@@ -549,7 +547,7 @@ class StatusMockupAppInstance extends DemoAppInstance implements SizedRasterable
 	}
 	
 	_buildScene(_size:Vec2D<number>) : AbstractRasterable {
-		return new AbstractFlexRasterable("down", blackBackground, [
+		return new AbstractFlexRasterable("down", blueBackground, [
 			{
 				component: makeBorderedAbstractRasterable(protoBorder, 1, statusDatasToAR(this.#statusDatas)),
 				flexGrowAlong: 0,

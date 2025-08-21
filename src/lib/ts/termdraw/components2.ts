@@ -1,7 +1,9 @@
+import { assertEquals } from "https://deno.land/std@0.165.0/testing/asserts.ts";
 import AABB2D from "./AABB2D.ts";
 import TextRaster2, { Style } from "./TextRaster2.ts";
 import Vec2D from "./Vec2D.ts";
 import { blitToRaster, createUniformRaster } from "./textraster2utils.ts";
+import { boundsAreEqual, boundsToSize, centeredExpandedBounds, sizeToBounds } from "./boundsutils.ts";
 
 // Automatic 'component' layout system
 // 
@@ -117,37 +119,15 @@ export interface BoundedRasterable extends RegionRasterable {
 	readonly bounds : AABB2D<number>;
 }
 
-export function boundsToSize(aabb:AABB2D<number>) : Vec2D<number> {
-	return {x: aabb.x1 - aabb.x0, y: aabb.y1 - aabb.y0 };
-}
-/**
- * Convert size to bounds for cases where the position
- * of the bounding box doesn't matter (i.e. usually!)
- */
-export function sizeToBounds(size:Vec2D<number>) : AABB2D<number> {
-	return {x0: 0, y0: 0, x1: size.x, y1: size.y};
-}
-
-export function rasterToSize(raster:TextRaster2, targetSize:Vec2D<number>) : TextRaster2 {
+export function assertRasterSize(raster:TextRaster2, targetSize:Vec2D<number>) : TextRaster2 {
 	if( raster.size.x == targetSize.x && raster.size.y == targetSize.y ) return raster;
 	
-	const background = createUniformRaster(targetSize, "", ""); // Hmm.
-	return blitToRaster(background, {
-		x: Math.round((targetSize.x - raster.size.x)/2),
-		y: Math.round((targetSize.y - raster.size.y)/2),
-	}, raster);
+	throw new Error(`Expected raster of size ${targetSize.x}x${targetSize.y}; the one given is ${raster.size.x}x${raster.size.y}`);
 }
 
 export function rasterizeRasterableToSize(rasterable:BoundedRasterable, targetSize:Vec2D<number>) : TextRaster2 {
-	const rcx : number = (rasterable.bounds.x0 + rasterable.bounds.x1) / 2;
-	const rcy : number = (rasterable.bounds.y0 + rasterable.bounds.y1) / 2;
-	const rast = rasterable.rasterForRegion({
-		x0: rcx - targetSize.x / 2,
-		y0: rcy - targetSize.y / 2,
-		x1: rcx + targetSize.x / 2,
-		y1: rcy + targetSize.y / 2,
-	})
-	return rasterToSize(rast, targetSize);
+	const rast = rasterable.rasterForRegion(centeredExpandedBounds(rasterable.bounds, targetSize));
+	return assertRasterSize(rast, targetSize);
 }
 
 export function rasterizePackedRasterableToSize(packrast:PackedRasterable, targetSize:Vec2D<number>) : TextRaster2 {
@@ -165,16 +145,13 @@ function validateSize(size:Vec2D<number>) {
 	return size;
 }
 
-//// Some building blocks
-
 /**
  * Implement regionToRaster for PackedRasterables that
  * don't know how to do that themselves.
  */
 export function thisPackedRasterableRegionToRaster(this:PackedRasterable, bounds:AABB2D<number>) {
 	const inflated = this.fillSize(boundsToSize(this.bounds));
-	// Hopefully inflated.bounds = this.bounds!
-	return inflated.rasterForRegion(bounds);
+	return inflated.rasterForRegion(centeredExpandedBounds(inflated.bounds, boundsToSize(bounds)));
 }
 
 export function thisAbstractRasterableToRasterForSize(this:AbstractRasterable, size:Vec2D<number>) {
@@ -208,10 +185,20 @@ export class FixedRasterable implements AbstractRasterable, PackedRasterable, Bo
 	fillRegion(_area: AABB2D<number>): BoundedRasterable {
 		return this;
 	}
-	rasterForRegion(_region: AABB2D<number>) : TextRaster2 {
-		return this.#raster;
+	rasterForRegion(region: AABB2D<number>) : TextRaster2 {
+		if( boundsAreEqual(region, this.bounds) ) {
+			return this.#raster;
+		}
+		
+		return blitToRaster(
+			createUniformRaster(boundsToSize(region), "", ""),
+			{ x: this.bounds.x0 - region.x0, y: this.bounds.y0 - region.y0 },
+			this.#raster
+		);
 	}
-	rasterForSize = thisAbstractRasterableToRasterForSize;
+	rasterForSize(size: Vec2D<number>) : TextRaster2 {
+		return this.rasterForRegion(centeredExpandedBounds(this.bounds, size));
+	}
 }
 
 export class AbstractBorderRasterable implements AbstractRasterable {
@@ -251,12 +238,12 @@ export class AbstractBorderRasterable implements AbstractRasterable {
 
 class PackedBorderRasterable implements PackedRasterable {
 	readonly bounds: AABB2D<number>;
-	readonly #packedInner: PackedRasterable;
+	readonly #packedInner: SizeFillingRasterableGenerator;
 	readonly #borderWidth: number;
 	readonly #backgroundGenerator: SizeFillingRasterableGenerator;
 	
 	constructor(
-		packedInner: PackedRasterable,
+		packedInner: SizeFillingRasterableGenerator,
 		borderWidth: number,
 		backgroundGenerator: SizeFillingRasterableGenerator,
 		bounds: AABB2D<number>
@@ -268,13 +255,16 @@ class PackedBorderRasterable implements PackedRasterable {
 	}
 	
 	fillSize(size : Vec2D<number>): BoundedRasterable {
-		const b = this.#borderWidth;
+		// If no room for border, forget the border
+		// (alternative is to fill the whole thing with border, or crash)
+		const bx = size.x < this.#borderWidth*2 ? 0 : this.#borderWidth;
+		const by = size.y < this.#borderWidth*2 ? 0 : this.#borderWidth;
 		const bg = this.#backgroundGenerator.fillSize(size);
 		const innerBounds = {
-			x0: bg.bounds.x0 + b,
-			y0: bg.bounds.y0 + b,
-			x1: bg.bounds.x1 - b,
-			y1: bg.bounds.y1 - b,
+			x0: bg.bounds.x0 + bx,
+			y0: bg.bounds.y0 + by,
+			x1: bg.bounds.x1 - bx,
+			y1: bg.bounds.y1 - by,
 		};
 		const filledInner = this.#packedInner.fillSize(boundsToSize(innerBounds));
 		return new SizedCompoundRasterable(
@@ -294,6 +284,9 @@ class PackedBorderRasterable implements PackedRasterable {
 
 interface CompoundChild<T> {
 	component: T,
+	// Hmm: If we want to be serious about bounds,
+	// we need offset to child's center, and bounds relative to that.
+	// Otherwise we just always center it within those bounds, or something.
 	bounds: AABB2D<number>,
 }
 
@@ -313,8 +306,15 @@ export class SizedCompoundRasterable implements BoundedRasterable {
 		const bgx0 = this.#background.bounds.x0;
 		const bgy0 = this.#background.bounds.y0;
 		for( const child of this.#children ) {
-			const childRast = child.component.rasterForRegion(child.component.bounds);
-			const childRastClipped = rasterToSize(childRast, boundsToSize(child.bounds));
+			const fillSize     = boundsToSize(child.bounds);
+			const adjustedInternalBounds = centeredExpandedBounds(child.component.bounds, fillSize);
+			
+			// There are different ways this could be done
+			// * Ask child component to generate a raster that will fill the full region,
+			//   even if that region is larger/smaller than the child
+			// - Let child generate its bounds, then center it
+			const childRast = child.component.rasterForRegion(adjustedInternalBounds);
+			const childRastClipped = assertRasterSize(childRast, fillSize);
 			rast = blitToRaster(rast, {x: child.bounds.x0 - bgx0, y: child.bounds.y0 - bgy0}, childRastClipped);
 		}
 		return rast;
@@ -364,8 +364,8 @@ export class PackedFlexRasterable implements PackedRasterable {
 	readonly bounds : AABB2D<number>;
 	readonly #children : FlexChild<PackedRasterable>[];
 	readonly #along : FlexDirection;
-	readonly #background : RegionRasterable;
-	constructor(along:FlexDirection, bounds:AABB2D<number>, background:RegionRasterable, children:FlexChild<PackedRasterable>[]) {
+	readonly #background : RegionFillingRasterableGenerator;
+	constructor(along:FlexDirection, bounds:AABB2D<number>, background:RegionFillingRasterableGenerator, children:FlexChild<PackedRasterable>[]) {
 		this.bounds = bounds;
 		this.#along = along;
 		this.#background = background;
@@ -376,12 +376,12 @@ export class PackedFlexRasterable implements PackedRasterable {
 		validateSize(size);
 		const horiz = this.#along == "right";
 		
-		const rows = [];
+		const rows : FlexChild<PackedRasterable>[][] = [];
 		const boxWidth  = size.x;
 		const boxHeight = size.y;
 		const boxLength = horiz ? boxWidth : boxHeight;
 		const boxDepth  = horiz ? boxHeight : boxWidth;
-
+		
 		if( this.#children.length > 0 ) {
 			let currentRowLength = 0;
 			let currentRow : FlexChild<PackedRasterable>[] = [];
@@ -413,32 +413,72 @@ export class PackedFlexRasterable implements PackedRasterable {
 		// a component, then pack/expand the rows.
 		
 		const sizedChildren : CompoundChild<BoundedRasterable>[] = [];
+		const rowInfos = [];
 		
-		let across = 0;
+		let totalDepth = 0;
+		let totalGrowAcross = 0;
+		let totalShrinkAcross = 0;
 		// TODO: Calculate row packed widths, then distribute
 		// remaining space across them (ignoring flexGrow, I guess)
 		for( let r=0; r<rows.length; ++r ) {
 			const row = rows[r];
-			let along = 0;
-			let maxDepth = 0;
-			let totalLength = 0;
-			let totalShrink = 0;
-			let totalGrow = 0;
+			let rowMaxDepth = 0;
+			let rowTotalLength = 0;
+			let rowTotalShrinkAlong = 0;
+			let rowTotalGrowAlong = 0;
+			let rowTotalGrowAcross = 0;
+			let rowTotalShrinkAcross = 0;
+			let rowMinGrowAcross = 1000;
+			
 			for( const child of row ) {
 				const cBounds = child.component.bounds;
 				const cWidth  = cBounds.x1 - cBounds.x0;
 				const cHeight = cBounds.y1 - cBounds.y0;
 				const cLength = horiz ? cWidth : cHeight;
 				const cDepth  = horiz ? cHeight : cWidth;
-				totalLength += cLength;
-				maxDepth = Math.max(maxDepth, cDepth);
-				totalShrink += child.flexShrinkAlong;
-				totalGrow   += child.flexGrowAlong;
+				rowTotalLength += cLength;
+				rowMaxDepth = Math.max(rowMaxDepth, cDepth);
+				rowTotalShrinkAlong  += child.flexShrinkAlong;
+				rowTotalGrowAlong    += child.flexGrowAlong;
+				rowTotalShrinkAlong  += child.flexShrinkAlong;
+				rowTotalGrowAcross   += child.flexGrowAcross;
+				rowTotalShrinkAcross += child.flexShrinkAcross;
+				rowMinGrowAcross = Math.min(child.flexGrowAcross, rowMinGrowAcross);
 			}
-			const rowDepth = r == rows.length-1 ? boxDepth - across : maxDepth;
-			const leftoverLength = boxLength - totalLength;
-			const totalGrowish = Math.max(1, totalGrow); // To avoid dividing by zero
-			// TODO: Deal with 'have to shrink' case
+			totalDepth += rowMaxDepth; // TODO: Add border width, if borders between rows
+			const rowGrowAcross   = rowMinGrowAcross; // rowTotalGrowAcross   / row.length;
+			const rowShrinkAcross = rowTotalShrinkAcross / row.length;
+			totalGrowAcross += rowGrowAcross;
+			totalShrinkAcross += rowShrinkAcross;
+			rowInfos.push({
+				totalLength: rowTotalLength,
+				maxDepth: rowMaxDepth,
+				totalGrowAlong: rowTotalGrowAlong,
+				flexGrowAcross: rowGrowAcross,
+				totalShrinkAlong: rowTotalShrinkAlong,
+				flexShrinkAcross: rowShrinkAcross
+			});
+		}
+		const leftoverDepth = boxDepth - totalDepth;
+		
+		const totalGrowAcrossish = Math.max(1, totalGrowAcross);
+		
+		let maxRowLength = 0;
+		let across = 0;
+		for( let r=0; r<rows.length; ++r ) {
+			const row = rows[r];
+			let along = 0;
+			const rowInfo = rowInfos[r];
+			const remainingDepth = boxDepth - across;
+			const rowFlexAcross = leftoverDepth > 0 ? rowInfo.flexGrowAcross : rowInfo.flexShrinkAcross;
+			const rowDepth = Math.max(0,
+				rowFlexAcross > 0 && r == rows.length - 1 ? remainingDepth :
+				Math.min(remainingDepth, Math.round(rowInfo.maxDepth + leftoverDepth * rowFlexAcross / totalGrowAcrossish)),
+			)
+			
+			const leftoverLength = boxLength - rowInfo.totalLength;
+			const totalGrowish = Math.max(1, rowInfo.totalGrowAlong); // To avoid dividing by zero
+			
 			for( let c=0; c<row.length; ++c ) {
 				const child = row[c];
 				const cBounds = child.component.bounds;
@@ -446,9 +486,11 @@ export class PackedFlexRasterable implements PackedRasterable {
 				const cHeight = cBounds.y1 - cBounds.y0;
 				const cLength = horiz ? cWidth : cHeight;
 				const remainingLength = boxLength - along;
-				const filledLength =
-					child.flexGrowAlong > 0 && c == row.length - 1 ? remainingLength :
-					Math.min(remainingLength, Math.round(cLength + leftoverLength * child.flexGrowAlong / totalGrowish));
+				const cFlexAlong = leftoverLength > 0 ? child.flexGrowAlong : child.flexShrinkAlong;
+				const filledLength = Math.max(0,
+					cFlexAlong > 0 && c == row.length - 1 ? remainingLength :
+					Math.min(remainingLength, Math.round(cLength + leftoverLength * cFlexAlong / totalGrowish))
+				);
 				const cX = horiz ? along : across;
 				const cY = horiz ? across : along;
 				const cFilledWidth  = horiz ? filledLength : rowDepth;
@@ -465,14 +507,27 @@ export class PackedFlexRasterable implements PackedRasterable {
 				along += filledLength;
 			}
 			
-			// Hmm: Might want to expand/shrink the rows, too!
-			across += maxDepth;
+			across += rowDepth;
+			maxRowLength = Math.max(maxRowLength, along);
 		}
 		
+		const bounds = {
+			x0: 0, y0: 0,
+			x1: horiz ? maxRowLength : across,
+			y1: horiz ? across : maxRowLength,
+		};
+		
+		// TODO: Remove this "X" that's here for debugging
+		sizedChildren.push({
+			bounds: {
+				x0: bounds.x1, y0: bounds.y0,
+				x1: bounds.x1+1, y1: bounds.y0+1,
+			},
+			component: makeSolidGenerator("X","")
+		});
+		
 		return new SizedCompoundRasterable(
-			// Hmm: Maybe ought to lazily generate the background raster
-			// but maybe that doesn't matter
-			new FixedRasterable(this.#background.rasterForRegion({x0:0, y0:0, x1:size.x, y1:size.y})),
+			this.#background.fillRegion(bounds),
 			sizedChildren
 		);
 	}
@@ -485,10 +540,10 @@ export class AbstractFlexRasterable implements AbstractRasterable {
 	// TODO: Replace with along and across directions
 	readonly #along      : FlexDirection;
 	// For now, #across is implicitly "right" or "down"
-	readonly #background : RegionRasterable;
+	readonly #background : RegionFillingRasterableGenerator;
 	readonly #children   : FlexChild<AbstractRasterable>[];
 	
-	constructor(along:FlexDirection, background:RegionRasterable, children:FlexChild<AbstractRasterable>[]) {
+	constructor(along:FlexDirection, background:RegionFillingRasterableGenerator, children:FlexChild<AbstractRasterable>[]) {
 		this.#children   = children  ;
 		this.#background = background;
 		this.#along      = along ;
@@ -531,27 +586,33 @@ function* addSep<T>(sep:T, items:Iterable<T>) : Iterable<T> {
 	}
 }
 
-export function makeSeparatedFlex(along:FlexDirection, background:RegionRasterable, separator:FlexChild<AbstractRasterable>, children:Iterable<FlexChild<AbstractRasterable>>) {
+export function makeSeparatedFlex(along:FlexDirection, background:RegionFillingRasterableGenerator, separator:FlexChild<AbstractRasterable>, children:Iterable<FlexChild<AbstractRasterable>>) {
 	return new AbstractFlexRasterable(along, background, [...addSep(separator, children)]);
 }
 
-export function makeSolidGenerator(char:string, style:Style) : AbstractRasterable&PackedRasterable&SizeFillingRasterableGenerator&RegionRasterable {
+export function makeSolidGenerator(char:string, style:Style) : AbstractRasterable&PackedRasterable&SizeFillingRasterableGenerator&RegionFillingRasterableGenerator&RegionRasterable {
+	const rasterForRegion = (region:AABB2D<number>) => {
+		return createUniformRaster(boundsToSize(region), char, style);
+	};
+	
 	// Lots of opportunities for memoization, here
 	return {
-		bounds: {x0:0, y0:0, x1:0, y1:0},
+		bounds: ZERO_BOUNDS,
 		pack() { return this; },
 		fillSize(size:Vec2D<number>) {
 			return {
 				bounds: {x0: 0, y0: 0, x1: size.x, y1: size.y},
-				rasterForRegion(region:AABB2D<number>) {
-					return createUniformRaster(boundsToSize(region), char, style);
-				}
+				rasterForRegion,
 			}
 		},
-		rasterForRegion(region:AABB2D<number>) {
-			return createUniformRaster(boundsToSize(region), char, style);
+		fillRegion(region:AABB2D<number>) {
+			return {
+				bounds: region,
+				rasterForRegion,
+			}
 		},
-		rasterForSize: thisAbstractRasterableToRasterForSize
+		rasterForRegion,
+		rasterForSize: thisAbstractRasterableToRasterForSize,
 	};
 }
 

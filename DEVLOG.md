@@ -478,6 +478,13 @@ abstract 'status data' objects to rasterable components:
 - [X] Actually draw borders!
 - [\] Padding so that status boxes aren't stretched
   - Implemented by respecting `flexGrow: 0`
+- [ ] Why are boxes and status-mockup content not centered?
+  - What I expect to happen is that `fillRegion` returns a BoundedRasterable
+    of the given size, and then the outer (stretched to fill the screen) component
+    calculates a region centered on that of the stretched size,
+    asks the inner component for a raster of that region,
+    and gets a raster where the content is roughly centered.
+    But content always ends up in the top-left.
 - [ ] When many messages, try to show the last ones
 - [ ] flexShrink: can it be used to prioritize
   what gets removed entirely, not just how much,
