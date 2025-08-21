@@ -348,9 +348,11 @@ export class PaddingRasterable implements AbstractRasterable, PackedRasterable, 
 // TODO: right/left/up/down
 export type FlexDirection = "rows"|"columns"|"right"|"down";
 export interface FlexChild<T> {
-	component: T;
-	flexShrink: number;
-	flexGrow: number;
+	component       : T;
+	flexGrowAlong   : number;
+	flexGrowAcross  : number;
+	flexShrinkAlong : number;
+	flexShrinkAcross: number;
 }
 
 /*
@@ -413,7 +415,10 @@ export class PackedFlexRasterable implements PackedRasterable {
 		const sizedChildren : CompoundChild<BoundedRasterable>[] = [];
 		
 		let across = 0;
-		for( const row of rows ) {
+		// TODO: Calculate row packed widths, then distribute
+		// remaining space across them (ignoring flexGrow, I guess)
+		for( let r=0; r<rows.length; ++r ) {
+			const row = rows[r];
 			let along = 0;
 			let maxDepth = 0;
 			let totalLength = 0;
@@ -427,9 +432,10 @@ export class PackedFlexRasterable implements PackedRasterable {
 				const cDepth  = horiz ? cHeight : cWidth;
 				totalLength += cLength;
 				maxDepth = Math.max(maxDepth, cDepth);
-				totalShrink += child.flexShrink;
-				totalGrow   += child.flexGrow;
+				totalShrink += child.flexShrinkAlong;
+				totalGrow   += child.flexGrowAlong;
 			}
+			const rowDepth = r == rows.length-1 ? boxDepth - across : maxDepth;
 			const leftoverLength = boxLength - totalLength;
 			const totalGrowish = Math.max(1, totalGrow); // To avoid dividing by zero
 			// TODO: Deal with 'have to shrink' case
@@ -441,12 +447,12 @@ export class PackedFlexRasterable implements PackedRasterable {
 				const cLength = horiz ? cWidth : cHeight;
 				const remainingLength = boxLength - along;
 				const filledLength =
-					child.flexGrow > 0 && c == row.length - 1 ? remainingLength :
-					Math.min(remainingLength, Math.round(cLength + leftoverLength * child.flexGrow / totalGrowish));
+					child.flexGrowAlong > 0 && c == row.length - 1 ? remainingLength :
+					Math.min(remainingLength, Math.round(cLength + leftoverLength * child.flexGrowAlong / totalGrowish));
 				const cX = horiz ? along : across;
 				const cY = horiz ? across : along;
-				const cFilledWidth  = horiz ? filledLength : maxDepth;
-				const cFilledHeight = horiz ? maxDepth : filledLength;
+				const cFilledWidth  = horiz ? filledLength : rowDepth;
+				const cFilledHeight = horiz ? rowDepth : filledLength;
 				
 				sizedChildren.push({
 					bounds: {
@@ -488,8 +494,10 @@ export class AbstractFlexRasterable implements AbstractRasterable {
 	pack(): PackedRasterable {
 		const packedChildren = this.#children.map(c => ({
 			component: c.component.pack(),
-			flexGrow: c.flexGrow,
-			flexShrink: c.flexShrink,
+			flexGrowAlong: c.flexGrowAlong,
+			flexGrowAcross: c.flexGrowAcross,
+			flexShrinkAlong: c.flexShrinkAlong,
+			flexShrinkAcross: c.flexShrinkAcross,
 		}));
 		let totalWidth = 0;
 		let totalHeight = 0;

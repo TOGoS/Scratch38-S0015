@@ -268,42 +268,51 @@ const fixedSpace = new FixedRasterable(textToRaster(" ", ""));
 const flexySpace = makeSolidGenerator(" ", "");
 const flexyOneSpace = new PaddingRasterable({x0:0, y0:0, x1:1, y1:1}, flexySpace);
 
-function mkSimpleTextRasterable(spans:{text:string, style:Style}[]) : AbstractRasterable {
+const oneCharPad = {
+	component: fixedSpace,
+	flexGrowAlong: 0,
+	flexGrowAcross: 0,
+	flexShrinkAlong: 1,
+	flexShrinkAcross: 0,
+};
+
+function mkSimpleTextRasterable(spans:{text:string, style:Style}[], background=blackBackground) : AbstractRasterable {
 	return new AbstractFlexRasterable(
 		"rows",
-		makeSolidGenerator(" ",ansi.BLACK_BACKGROUND),
+		background,
 		spans.map(span => {
 			const rast = textToRaster(span.text, span.style);
 			return {
 				component: new FixedRasterable(rast),
-				flexGrow: 0,
-				flexShrink: 0
+				flexGrowAlong: 0,
+				flexGrowAcross: 0,
+				flexShrinkAlong: 0,
+				flexShrinkAcross: 0,
 			}
 		}),
 	);
 }
 
-function mkTextRasterable(spans:{text:string, style:Style}[]) : AbstractRasterable {
-	return new AbstractFlexRasterable("rows", makeSolidGenerator(" ",ansi.BLACK_BACKGROUND), [
-		{
-			component: fixedSpace,
-			flexGrow: 0, flexShrink: 0
-		},
+function mkTextRasterable(spans:{text:string, style:Style}[], background=blackBackground) : AbstractRasterable {
+	return new AbstractFlexRasterable("rows", background, [
+		oneCharPad,
 		...spans.map(span => {
 			const rast = textToRaster(span.text, span.style);
 			return {
 				component: new FixedRasterable(rast),
-				flexGrow: 0,
-				flexShrink: 0
+				flexGrowAlong: 0,
+				flexGrowAcross: 0,
+				flexShrinkAlong: 0,
+				flexShrinkAcross: 0,
 			}
 		}),
-		{
-			component: fixedSpace,
-			flexGrow: 0, flexShrink: 0
-		},
+		oneCharPad,
 		{
 			component: flexySpace,
-			flexGrow: 1, flexShrink: 1
+			flexGrowAlong: 1,
+			flexGrowAcross: 0,
+			flexShrinkAlong: 1,
+			flexShrinkAcross: 0,
 		}
 	]); // Maybe add a padding one at the end
 }
@@ -388,16 +397,28 @@ class BoxesAppInstance extends DemoAppInstance implements SizedRasterable {
 			{text:"Screen size: ", style:ansi.WHITE_TEXT},
 			{text:size.x +" x " +size.y, style:ansi.BRIGHT_WHITE_TEXT},
 		]);
+		const contProps = {
+			flexGrowAlong: 0,
+			flexGrowAcross: 1,
+			flexShrinkAlong: 0,
+			flexShrinkAcross: 0,
+		};
+		const padProps = {
+			flexGrowAlong: 1,
+			flexGrowAcross: 1,
+			flexShrinkAlong: 1,
+			flexShrinkAcross: 1,
+		};
 		const texto = new AbstractFlexRasterable("columns", treeBg, [
-			{component: welcomeSpan, flexGrow: 0, flexShrink: 1},
-			{component: sizeSpan   , flexGrow: 0, flexShrink: 1},
+			{component: welcomeSpan, ...contProps},
+			{component: sizeSpan   , ...contProps},
 		]);
 		const tree = lineBordered(BDC_PROP_VALUES.DOUBLE, ansi.BOLD+ansi.BRIGHT_RED_TEXT, new AbstractFlexRasterable("columns", treeBg, [
-			{component: lineBordered(BDC_PROP_VALUES.LIGHT, ansi.WHITE_TEXT, texto), flexGrow: 0, flexShrink: 0},
+			{component: lineBordered(BDC_PROP_VALUES.LIGHT, ansi.WHITE_TEXT, texto), ...contProps},
 			// TODO: Instead of solid, make boxes
-			{component: lineBordered(BDC_PROP_VALUES.LIGHT, ansi.BOLD+ansi.RED_TEXT  , makeSolidGenerator("2", ansi.RED_TEXT  )), flexGrow: 1, flexShrink: 0},
-			{component: lineBordered(BDC_PROP_VALUES.LIGHT, ansi.BOLD+ansi.GREEN_TEXT, makeSolidGenerator("3", ansi.GREEN_TEXT)), flexGrow: 1, flexShrink: 0},
-			{component: lineBordered(BDC_PROP_VALUES.LIGHT, ansi.BOLD+ansi.BLUE_TEXT , makeSolidGenerator("4", ansi.BLUE_TEXT )), flexGrow: 1, flexShrink: 0},
+			{component: lineBordered(BDC_PROP_VALUES.LIGHT, ansi.BOLD+ansi.RED_TEXT  , makeSolidGenerator("2", ansi.RED_TEXT  )), ...padProps},
+			{component: lineBordered(BDC_PROP_VALUES.LIGHT, ansi.BOLD+ansi.GREEN_TEXT, makeSolidGenerator("3", ansi.GREEN_TEXT)), ...padProps},
+			{component: lineBordered(BDC_PROP_VALUES.LIGHT, ansi.BOLD+ansi.BLUE_TEXT , makeSolidGenerator("4", ansi.BLUE_TEXT )), ...padProps},
 		]));
 		return tree;
 	}
@@ -416,65 +437,91 @@ interface StatusData {
 
 function statusDataToAR(thing:StatusData) : AbstractRasterable {
 	const components : FlexChild<AbstractRasterable>[] = [];
+	// Note that along = down, across = L-R
+	// Status line
 	components.push({
-		flexGrow: 1,
-		flexShrink: 0,
 		component: new AbstractFlexRasterable("rows",
 			blackBackground,
 			[
-				{ component: mkSimpleTextRasterable([{text: thing.name, style: ansi.BRIGHT_WHITE_TEXT}]), flexGrow: 0, flexShrink: 0 },
-				{ component: flexyOneSpace, flexGrow: 1, flexShrink: 0 },
-				{ component: mkSimpleTextRasterable([{
-					text: thing.status ?? "?",
-					style:
-						thing.status == "online" ? ansi.BRIGHT_GREEN_TEXT :
-						thing.status == "offline" ? ansi.RED_TEXT :
-						ansi.YELLOW_TEXT
-				}]), flexGrow: 0, flexShrink: 0 },
+				oneCharPad,
+				{
+					component: mkSimpleTextRasterable([{text: thing.name, style: ansi.BRIGHT_WHITE_TEXT}]),
+					flexGrowAlong: 0, flexGrowAcross: 0, flexShrinkAlong: 0, flexShrinkAcross: 0
+				},
+				{
+					component: flexyOneSpace,
+					flexGrowAlong: 1, flexGrowAcross: 0, flexShrinkAlong: 0, flexShrinkAcross: 0
+				},
+				{
+					component: mkSimpleTextRasterable([{
+						text: thing.status ?? "?",
+						style:
+							thing.status == "online" ? ansi.BRIGHT_GREEN_TEXT :
+							thing.status == "offline" ? ansi.RED_TEXT :
+							ansi.YELLOW_TEXT
+					}]),
+					flexGrowAlong: 0, flexGrowAcross: 0, flexShrinkAlong: 0, flexShrinkAcross: 0
+				},
+				oneCharPad,
 			]
-		)
+		),
+		flexGrowAlong: 0,
+		flexGrowAcross: 1,
+		flexShrinkAlong: 1,
+		flexShrinkAcross: 1,
 	});
+	// Last seen line
 	components.push({
-		flexGrow: 1,
-		flexShrink: 1,
 		component: mkTextRasterable([
 			{
 				text: "last seen: " + (thing.lastSeen == undefined ? "never" : thing.lastSeen.toISOString()),
 				style: ansi.BRIGHT_BLACK_TEXT
 			}
-		])
+		]),
+		flexGrowAlong: 0,
+		flexGrowAcross: 1,
+		flexShrinkAlong: 1,
+		flexShrinkAcross: 1,
 	});
 	const messagesChildren : FlexChild<AbstractRasterable>[] = [];
 	// TODO: Put messages in its own area that when shrunk
 	// just shows fewer of them; might need to add a 'gravity' prop or something
 	for( const msg of thing.recentMessages ) {
 		messagesChildren.push({
-			flexGrow: 0,
-			flexShrink: 1,
 			// TODO: Show the most recent message in different color
 			// so I can check that sorting is working
 			component: mkTextRasterable([
 				{text: msg, style: ansi.WHITE_TEXT},
-			])}
-		);
+			]),
+			flexGrowAlong: 0,
+			flexGrowAcross: 1,
+			flexShrinkAlong: 1,
+			flexShrinkAcross: 1
+		});
 	}
 	components.push({
-		flexGrow: 0,
-		flexShrink: 1,
 		component: new AbstractFlexRasterable("columns", blueBackground, messagesChildren),
+		flexGrowAlong: 0,
+		flexGrowAcross: 1,
+		flexShrinkAlong: 1,
+		flexShrinkAcross: 1,
 	})
 	return new AbstractFlexRasterable("columns", blueBackground, components);
 }
 function statusDatasToAR(things:StatusData[]) : AbstractRasterable {
 	return makeSeparatedFlex("columns", blackBackground, {
-		flexShrink: 0,
-		flexGrow: 0,
 		component: protoBorder,
+		flexGrowAlong: 0,
+		flexGrowAcross: 1,
+		flexShrinkAlong: 1,
+		flexShrinkAcross: 1,
 	}, things.map(sd => ({
 		// TODO: Allow them to grow across, but not along!
-		flexGrow: 0,
-		flexShrink: 1,
 		component: statusDataToAR(sd),
+		flexGrowAlong: 0,
+		flexGrowAcross: 1,
+		flexShrinkAlong: 1,
+		flexShrinkAcross: 1,
 	})));
 }
 
