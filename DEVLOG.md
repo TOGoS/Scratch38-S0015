@@ -445,3 +445,38 @@ so I can at least blit that stuff.
 
 `BoxDrawr` now has a `contentToRaster` method, which returns a `TextRaster2`.
 This can be used to draw more complicated liney stuff, too, not just rectangles.
+
+## 2025-08-21
+
+### Status Mockup, take 1
+
+Bare minimum work done to translate a couple of
+abstract 'status data' objects to rasterable components:
+
+![Screenshot showing a very shoddy, but non-crashing, mockup of a dashboard showing statuses of 'bill' and 'ted' devices](http://picture-files.nuke24.net/uri-res/raw/urn:bitprint:32UASPAPQJ7SETR7LMWMJF2X32VOE6IF.G4Y7ZVV5DENC3ILVWCUEEF4QSEBPHCPP4RGOLLY/20250821T12-StatusMockup-take1.png)
+
+### To-do
+
+#### Demo improvements
+
+- [ ] Actually draw borders!
+- [ ] Padding so that status boxes aren't stretched
+- [ ] When many messages, try to show the last ones
+- [ ] flexShrink: can it be used to prioritize
+  what gets removed entirely, not just how much,
+  proportionally, to shrink a given flex child?
+  Old messages, 'last seen', and latest message
+  could be hidden, in that order, when space is insufficient.
+  And/or the whole layout could change to not include borders.
+
+#### Flex
+
+- [ ] Replace "rows" and "columns" flex directions with alongDirection and acrossDirection,
+  which can be "up"/"down"/"left"/"right" (but along and across must be orthogonal)
+
+#### Box drawing
+
+- [ ] At some point, turn placeholder '?'s into box-drawing chars as appropriate given neighbors.
+  - May want to somehow do this before flex content is drawn?
+  - I'm thinking of possibly wanting to draw titles over the lines.
+    Maybe punt for now.

@@ -325,11 +325,9 @@ export class PaddingRasterable implements AbstractRasterable, PackedRasterable {
 	rasterForSize = thisAbstractRasterableToRasterForSize;
 }
 
-// TODO: 'flex' rasterable, which lays children out in rows and/or columns,
-// similar to HTML/CSS flexbox
-
-type FlexDirection = "rows"|"columns";
-interface FlexChild<T> {
+// TODO: right/left/up/down
+export type FlexDirection = "rows"|"columns"|"right"|"down";
+export interface FlexChild<T> {
 	component: T;
 	flexShrink: number;
 	flexGrow: number;
@@ -450,7 +448,9 @@ export class PackedFlexRasterable implements PackedRasterable {
 	
 	regionToRaster = thisPackedRasterableRegionToRaster;
 }
+// TODO: A way to indicate what to do when there'
 export class AbstractFlexRasterable implements AbstractRasterable {
+	// TODO: Replace with along and across directions
 	readonly #direction  : FlexDirection;
 	readonly #background : RegionRasterable;
 	readonly #children   : FlexChild<AbstractRasterable>[];
@@ -485,6 +485,19 @@ export class AbstractFlexRasterable implements AbstractRasterable {
 	}
 	
 	rasterForSize = thisAbstractRasterableToRasterForSize;
+}
+
+function* addSep<T>(sep:T, items:Iterable<T>) : Iterable<T> {
+	let first = true;
+	for( const item of items ) {
+		if( !first ) yield sep;
+		yield item;
+		first = false;
+	}
+}
+
+export function makeSeparatedFlex(direction:FlexDirection, background:RegionRasterable, separator:FlexChild<AbstractRasterable>, children:Iterable<FlexChild<AbstractRasterable>>) {
+	return new AbstractFlexRasterable(direction, background, [...addSep(separator, children)]);
 }
 
 export function makeSolidGenerator(char:string, style:Style) : AbstractRasterable&PackedRasterable&SizedRasterableGenerator&RegionRasterable {
