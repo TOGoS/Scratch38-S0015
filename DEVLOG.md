@@ -528,8 +528,8 @@ Now everything seems to be working properly.
     asks the inner component for a raster of that region,
     and gets a raster where the content is roughly centered.
     But content always ends up in the top-left.
-- [ ] Refactor screen size to be a reactive variable thing
-- [ ] `--console-size=${x},${y}` to force a certain screen size
+- [X] Refactor screen size to be a reactive variable thing
+- [X] `--console-size=${x},${y}` to force a certain screen size
 - [ ] When many messages, try to show the last ones
 - [ ] flexShrink: can it be used to prioritize
   what gets removed entirely, not just how much,
@@ -542,6 +542,7 @@ Now everything seems to be working properly.
 
 - [ ] Replace "rows" and "columns" flex directions with alongDirection and acrossDirection,
   which can be "up"/"down"/"left"/"right" (but along and across must be orthogonal)
+- [ ] Allow spacing between rows and columns
 
 #### Box drawing
 

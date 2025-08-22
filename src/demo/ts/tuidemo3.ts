@@ -7,8 +7,10 @@ import { AbstractComponentWrapper, AbstractFlexRasterable, AbstractRasterable, B
 import TextRaster2, { Style } from '../../lib/ts/termdraw/TextRaster2.ts';
 import { createUniformRaster, drawTextToRaster, textToRaster } from '../../lib/ts/termdraw/textraster2utils.ts';
 import Vec2D from '../../lib/ts/termdraw/Vec2D.ts';
+import { vec2dsAreEqual } from '../../lib/ts/termdraw/vecutils.ts';
 import KeyEvent from '../../lib/ts/terminput/KeyEvent.ts';
 import { AbstractAppInstance, PossiblyTUIAppContext, PossiblyTUIAppSpawner, runTuiApp, TUIAppRunOpts, Waitable } from '../../lib/ts/tuiappframework3.ts';
+import WatchableVariable, { makeReadonlyWatchable } from '../../lib/ts/WatchableVariable.ts';
 
 //// Misc helper functions
 
@@ -589,6 +591,7 @@ interface TopArgs {
 	appName : string;
 	outputMode? : "screen"|"lines";
 	inputMode? : "none"|"push-key-events";
+	screenSizeOverride? : Vec2D<number>;
 	appArgs : string[];
 }
 
@@ -597,6 +600,7 @@ function parseTopArgs(args:string[]) : TopArgs {
 	let appName : string = "no-app-specified";
 	let outputMode : undefined|"screen"|"lines"         = undefined;
 	let inputMode  : undefined|"none"|"push-key-events" = undefined;
+	let screenSizeOverride : undefined|Vec2D<number>    = undefined;
 	let m : RegExpExecArray|null;
 	for( let i=0; i<args.length; ++i ) {
 		if( args[i] == '--help' ) {
@@ -605,6 +609,8 @@ function parseTopArgs(args:string[]) : TopArgs {
 			inputMode = "push-key-events";
 		} else if( (m = /^--output-mode=(screen|lines)$/.exec(args[i])) != null ) {
 			outputMode = m[1] as "screen"|"lines";
+		} else if( (m = /^--screen-size=(?<x>\d+),(?<y>\d+)$/.exec(args[i])) != null ) {
+			screenSizeOverride = {x:+m.groups!["x"], y: +m.groups!["y"]};
 		} else if( args[i].startsWith("-") ) {
 			appArgs.push(args[i]);
 		} else {
@@ -613,7 +619,7 @@ function parseTopArgs(args:string[]) : TopArgs {
 			break;
 		}
 	}
-	return { appName, outputMode, inputMode, appArgs };
+	return { appName, outputMode, inputMode, screenSizeOverride, appArgs };
 }
 
 interface ProcLikeSpawnContext {
@@ -668,13 +674,46 @@ function echoAndExitApp(toStdout:string[], toStderr:string[], exitCode:number) :
 	}
 }
 
+function makeDenoScreenSizeVariable(initalValue:Vec2D<number>, refreshInterval:number) : WatchableVariable<Vec2D<number>> {
+	return makeReadonlyWatchable(
+		initalValue,
+		(abortSignal, setter) => {
+			const refreshScreenSize = () => {
+				const cs = Deno.consoleSize();
+				const vec = {x:cs.columns, y:cs.rows};
+				setter(vec);
+			}
+			
+			let signalListenerAdded : boolean = false;
+			let interval : number|undefined = undefined;
+			
+			refreshScreenSize();
+			
+			try {
+				Deno.addSignalListener("SIGWINCH", refreshScreenSize);
+				signalListenerAdded = true;
+			} catch( e ) {
+				interval = setInterval(refreshScreenSize, refreshInterval);
+			}
+			
+			abortSignal.addEventListener("abort", () => {
+				if(signalListenerAdded) Deno.removeSignalListener("SIGWINCH", refreshScreenSize);
+				if(interval) clearInterval(interval);
+			});
+		},
+		vec2dsAreEqual
+	);
+}
+
 function parseMain(args:string[]) : Spawner<ProcLikeSpawnContext,Waitable<number>> {
 	const topArgs = parseTopArgs(args);
 	
-	const runOpts = {
-		// In case Deno.screenSize() doesn't work
-		// Hmm: Maybe the whole Deno.consoleSizE() + fallback should be passed in as a callback
-		fallbackConsoleSize: {x: 40, y: 20}
+	const screenSizeVar =
+		topArgs.screenSizeOverride ? makeReadonlyWatchable(topArgs.screenSizeOverride) :
+		makeDenoScreenSizeVariable({x: 40, y: 20}, 1000);
+	
+	const runOpts : Pick<TUIAppRunOpts, "screenSizeVar"> = {
+		screenSizeVar
 	};
 	
 	if( topArgs.appName == "help" ) {

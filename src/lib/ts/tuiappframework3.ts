@@ -9,6 +9,7 @@ import { inputEvents } from '../../lib/ts/terminput/inputeventparser.ts';
 import KeyEvent from '../../lib/ts/terminput/KeyEvent.ts';
 import { AbstractRasterable, PackedRasterable, SizedRasterable } from './termdraw/components2.ts';
 import { centeredExpandedBounds } from './termdraw/boundsutils.ts';
+import WatchableVariable from './WatchableVariable.ts';
 
 //// Some types that could be librarified if this all works
 
@@ -81,7 +82,7 @@ export type PossiblyTUIAppSpawner<Context,Instance,InputEvent> = {
 
 export interface TUIAppRunOpts {
 	outputMode: "screen"|"lines",
-	fallbackConsoleSize?: Vec2D<number>,
+	screenSizeVar : WatchableVariable<Vec2D<number>>,
 }
 
 export async function runTuiApp<Result>(
@@ -93,19 +94,6 @@ export async function runTuiApp<Result>(
 	opts: TUIAppRunOpts
 ) : Promise<Result> {
 	const textEncoder = new TextEncoder();
-	
-	function getScreenSize() : Vec2D<number> {
-		try {
-			const cs = Deno.consoleSize();
-			return { x: cs.columns, y: cs.rows };
-		} catch( e ) {
-			if( opts.fallbackConsoleSize ) return opts.fallbackConsoleSize;
-			else {
-				console.error("No fallback console size!  We shall die!");
-				throw e;
-			}
-		}
-	}
 	
 	// Output manager provides a common interface to manage terminal output,
 	// whether in screen or lines mode.
@@ -189,6 +177,10 @@ export async function runTuiApp<Result>(
 	let rawModeSet = false;
 	let outManActive = false;
 	
+	const screenSizeChangeListener = function(this:WatchableVariable<Vec2D<number>>) {
+		outMan.setScreenSize(this.value);
+	};
+	
 	async function cleanup() {
 		if( rawModeSet ) {
 			ctx.stdin.setRaw(false);
@@ -198,6 +190,7 @@ export async function runTuiApp<Result>(
 			await outMan.exit();
 			outManActive = false;
 		}
+		opts.screenSizeVar.removeEventListener("change", screenSizeChangeListener);
 	}
 	
 	// Finally block is not run when the Deno process is killed with Ctrl+c
@@ -222,19 +215,7 @@ export async function runTuiApp<Result>(
 			stdin = ctx.stdin.readable;
 		}
 		
-		const refreshScreenSize = () => {
-			outMan.setScreenSize(getScreenSize());
-		}
-		
-		refreshScreenSize();
-		// TODO: Make this optional?
-		// Or unify as an async stream of changes or something?
-		// Remove dependency on 'Deno'
-		try {
-			Deno.addSignalListener("SIGWINCH", refreshScreenSize);
-		} catch( e ) {
-			setInterval(refreshScreenSize, 1000);
-		}
+		opts.screenSizeVar.addEventListener("change", screenSizeChangeListener, {immediate:true});
 		
 		const appInstance = spawner.spawn({
 			stdin   : stdin,

@@ -44,4 +44,3 @@ export function centeredExpandedBounds(objectBounds: AABB2D<number>, outerSize: 
     y1: adjustedInternalY0 + outerSize.y,
   };
 }
-
