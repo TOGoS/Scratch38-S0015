@@ -222,6 +222,40 @@ Deno.test("blit 2x2 square to 4x4 canvas at -1,-1", () => {
 	assertEquals(result, expectedResult);
 });
 
+Deno.test("blit tansparent pattern", () => {
+	const cu = undefined;
+	const su = undefined;
+	const c0 = ".";
+	const s0 = DEFAULT_STYLE;
+	const c1 = ";";
+	const s1 = RED_TEXT;
+
+	const canvas = createUniformRaster({x: 2, y: 2}, c0, s0);
+	const stamp  : TextRaster2 = {
+		size: {x: 2, y: 2},
+		chars: [
+			[cu, c1],
+			[c1, cu],
+		],
+		styles: [
+			[su, su],
+			[s1, s1],
+		]
+	};
+	const expected : TextRaster2 = {
+		size: {x: 2, y: 2},
+		chars: [
+			[c0, c1],
+			[c1, c0],
+		],
+		styles: [
+			[s0, s0],
+			[s1, s1],
+		]
+	};
+	assertEquals(blitToRaster(canvas, {x:0, y:0}, stamp), expected);
+});
+
 Deno.test("blit 2x2 square to 4x4 canvas at 3,3", () => {
 	const c0 = ".";
 	const c1 = ";";

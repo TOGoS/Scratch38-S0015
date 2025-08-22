@@ -168,7 +168,7 @@ export class FixedRasterable implements AbstractRasterable, PackedRasterable, Bo
 		if( boundsAreEqual(region, this.bounds) ) return this.#raster;
 		
 		return blitToRaster(
-			createUniformRaster(boundsToSize(region), "", ""),
+			createUniformRaster(boundsToSize(region), undefined, undefined),
 			{ x: this.bounds.x0 - region.x0, y: this.bounds.y0 - region.y0 },
 			this.#raster
 		);

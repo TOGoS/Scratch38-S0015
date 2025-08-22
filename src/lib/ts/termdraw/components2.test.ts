@@ -2,11 +2,10 @@ import { assertEquals } from 'https://deno.land/std@0.165.0/testing/asserts.ts';
 import * as ansi from './ansi.ts';
 import { AbstractRasterable, FixedRasterable } from "./components2.ts";
 import { createUniformRaster } from "./textraster2utils.ts";
-import { boundsToSize } from './boundsutils.ts';
 
 Deno.test("FixedRasterable is fixed", () => {
-	const c0 = "";
-	const s0 = "";
+	const c0 = undefined;
+	const s0 = undefined;
 	const c1 = "X";
 	const s1 = ansi.RED_TEXT;
 	

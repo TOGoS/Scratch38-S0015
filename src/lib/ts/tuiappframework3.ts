@@ -139,7 +139,7 @@ export async function runTuiApp<Result>(
 	})() : (() => {
 		let currentScene : SizedRasterable = {
 			rasterForSize(size:Vec2D<number>) : TextRaster2 {
-				return createUniformRaster(size, " ", ansi.RESET_FORMATTING);
+				return createUniformRaster(size, " ", ansi.DEFAULT_STYLE);
 			}
 		}
 		let screenSize : Vec2D<number> = {x: 20, y: 10};

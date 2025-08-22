@@ -149,7 +149,7 @@ function validateRaster(rast:TextRaster2) {
 	return rast;
 }
 
-export function createUniformRaster(size:Vec2D<number>, char:string, style:string) : TextRaster2 {
+export function createUniformRaster(size:Vec2D<number>, char:Character|undefined, style:Style|undefined) : TextRaster2 {
 	const charLine  = createUniformList(size.x, char);
 	const styleLine = createUniformList(size.x, style);
 	return validateRaster({
@@ -165,9 +165,10 @@ function blitRowNoBoundsCheck<T>(canvas:T[], offset:number, stamp:(T|undefined)[
 	const x0 = offset;
 	const x1 = offset + stampOffset1-stampOffset0;
 	for( let i=0; i<canvas.length; ++i ) {
-		let dat = i < x0 || i >= x1 ? canvas[i] : stamp[stampOffset0 + i - x0];
-		if( dat == undefined ) dat = canvas[i];
-		else if( canvas[i] != dat ) anythingChanged = true;
+		const dat =
+			i < x0 || i >= x1 ? canvas[i] :
+			stamp[stampOffset0 + i - x0] ?? canvas[i];
+		if( canvas[i] != dat ) anythingChanged = true;
 		result[i] = dat;
 	}
 	return anythingChanged ? result : canvas;
