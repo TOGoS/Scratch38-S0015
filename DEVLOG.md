@@ -549,3 +549,12 @@ Now everything seems to be working properly.
   - May want to somehow do this before flex content is drawn?
   - I'm thinking of possibly wanting to draw titles over the lines.
     Maybe punt for now.
+
+Thought: Background generator could be a function of outer bounding box +
+bounding boxes of all children.  Then an outlining background generator
+could just `BoxDrawr` lines around each child.
+
+This would also require the flex layout thing to
+be able to insert margins between and around children;
+the goofy padding inserted in there is no good
+anyway because it might end up at the edge and be redundant.
