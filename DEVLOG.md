@@ -514,6 +514,32 @@ Now everything seems to be working properly.
 ![Centered boxes screenshot](http://picture-files.nuke24.net/uri-res/raw/urn:bitprint:PMDMGPSQGTJ4AQLUULLAJVO3PQP4SKL5.B2MXEOAUZCIXCY5IAAJTS2JBIQ6V7CA7DTJBGBA/20250821T23-CenteredBoxes.png)
 ![Centered status mockup screenshot](http://picture-files.nuke24.net/uri-res/raw/urn:bitprint:E4QJAAU3KRCYTUMGM6NKAXZUH2J2TWVQ.ECFYJF4NN47QQKMGC3FHLLFW4IQQNS6EIADQWJI/20250821T23-CenteredStatus.png)
 
+## 2025-08-22
+
+### Flex spacing
+
+Made flex boxes able to put space around stuff.
+
+![Screenshot showing a flex container with 1-character border around each child](http://picture-files.nuke24.net/uri-res/raw/urn:bitprint:FY6VMMVQ4UQSHAQ7YI4M5D7U534BJJBJ.YGAQBIHEH2EFBTLUFUPXRJOU7IAOBTRYOSRY5WQ/20250822T17-PackOkay.png)
+
+Problem: Flex box crammed into small space
+should be able to expand, but its parent flex box cannot
+take into account children's new size after inflating!
+
+![Screenshot showing a parent flexbox failing to take into account a child's post-inflation width](http://picture-files.nuke24.net/uri-res/raw/urn:bitprint:S4536LZPK2UDGPYZ6KPDM7HYQUP5XH7U.MB5QQS3I3UF7DSBFRN2Q4OWPHD72TVNAFEAT7AA/20250822T17-PackFail.png)
+
+Proposed solution: `pack` to take a container size parameter.
+Obejcts should still try to pack into the smallest space possible,
+but they can take those dimensions into account.
+
+### Unexplained gap
+
+Also, when I make the screen only 5 rows high,
+the 'Bill' box of `status-mockup` somehow
+ends up with a space at the top, cuurrently marked with a cyan background.
+
+![Exclamation points on cyan background indicate "this area should not be showing"](http://picture-files.nuke24.net/uri-res/raw/urn:bitprint:C5BHVSYK54ASWXZBRDI3DGKD5GPF345E.SDSH7EA3X5XNBCRRTCY5KQ6SBERJR6F5PLBC5DQ/20250822T17-PackFail2.png)
+
 ### To-do
 
 #### Demo improvements
@@ -543,6 +569,7 @@ Now everything seems to be working properly.
 - [ ] Replace "rows" and "columns" flex directions with alongDirection and acrossDirection,
   which can be "up"/"down"/"left"/"right" (but along and across must be orthogonal)
 - [ ] Allow spacing between rows and columns
+- [ ] Fix [that gap](#2025-08-22)
 
 #### Box drawing
 

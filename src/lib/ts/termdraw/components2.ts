@@ -1,8 +1,9 @@
 import AABB2D from "./AABB2D.ts";
 import TextRaster2, { Style } from "./TextRaster2.ts";
 import Vec2D from "./Vec2D.ts";
+import { BRIGHT_CYAN_TEXT, BRIGHT_GREEN_TEXT, CYAN_TEXT, GREEN_TEXT } from "./ansi.ts";
 import { boundsAreEqual, boundsToSize, centeredExpandedBounds, sizeToBounds, validateSize } from "./boundsutils.ts";
-import { blitToRaster, createUniformRaster } from "./textraster2utils.ts";
+import { blitToRaster, createUniformRaster, drawTextToRaster } from "./textraster2utils.ts";
 
 // Automatic 'component' layout system
 // 
@@ -278,6 +279,8 @@ export class SizedCompoundRasterable implements BoundedRasterable {
 	get bounds() { return this.#background.bounds; }
 	
 	rasterForRegion(region: AABB2D<number>): TextRaster2 {
+		const debugBounds = false;
+		
 		let rast = this.#background.rasterForRegion(region);
 		const rastBounds = centeredExpandedBounds(region, rast.size);
 		const bgx0 = rastBounds.x0;
@@ -293,9 +296,12 @@ export class SizedCompoundRasterable implements BoundedRasterable {
 			const childRast = child.component.rasterForRegion(adjustedInternalBounds);
 			const childRastClipped = assertRasterSize(childRast, fillSize);
 			rast = blitToRaster(rast, {x: child.bounds.x0 - bgx0, y: child.bounds.y0 - bgy0}, childRastClipped);
-			// rast = drawTextToRaster(rast, {x: child.bounds.x1 - 20, y: child.bounds.y1 - bgy0 - 1}, regStr(this.#background.bounds) + " / " + regStr(adjustedInternalBounds), GREEN_TEXT);
+			if( debugBounds ) {
+				const brText = regStr(this.#background.bounds) + " / " + regStr(adjustedInternalBounds);
+				rast = drawTextToRaster(rast, {x: child.bounds.x1 - brText.length - bgx0, y: child.bounds.y1 - 1 - bgy0}, brText, BRIGHT_GREEN_TEXT);
+			}
 		}
-		// rast = drawTextToRaster(rast, {x:2, y:0}, regStr(region), CYAN_TEXT);
+		if( debugBounds ) rast = drawTextToRaster(rast, {x:0, y:0}, regStr(region), BRIGHT_CYAN_TEXT);
 		return rast;
 	}
 }
@@ -386,7 +392,18 @@ class PackedFlexRasterable implements PackedRasterable {
 	
 	fillSize(size: Vec2D<number>): BoundedRasterable {
 		validateSize(size);
-		const horiz = this.#options.alongDirection == "right";
+		
+		const {
+			alongDirection,
+			acrossAfterSpace,
+			acrossBeforeSpace,
+			acrossBetweenSpace,
+			alongAfterSpace,
+			alongBeforeSpace,
+			alongBetweenSpace,
+		} = this.#options;
+		
+		const horiz = alongDirection == "right";
 		
 		const rows : FlexChild<PackedRasterable>[][] = [];
 		const boxWidth  = size.x;
@@ -394,8 +411,9 @@ class PackedFlexRasterable implements PackedRasterable {
 		const boxLength = horiz ? boxWidth : boxHeight;
 		const boxDepth  = horiz ? boxHeight : boxWidth;
 		
+		// Wrap into rows
 		if( this.#children.length > 0 ) {
-			let currentRowLength = 0;
+			let currentRowLength = alongBeforeSpace;
 			let currentRow : FlexChild<PackedRasterable>[] = [];
 			rows.push(currentRow);
 			
@@ -410,13 +428,13 @@ class PackedFlexRasterable implements PackedRasterable {
 				const cHeight = cBounds.y1 - cBounds.y0;
 				const cLength = horiz ? cWidth : cHeight;
 				// const cDepth  = horiz ? cHeight : cWidth;
-				const currentRowTentativeLength = currentRowLength + cLength;
-				if( currentRow.length == 0 || currentRowTentativeLength <= boxLength ) {
+				const currentRowTentativeLength = currentRowLength + (currentRow.length > 0 ? alongBetweenSpace : 0 ) + cLength;
+				if( currentRow.length == 0 || currentRowTentativeLength <= boxLength - alongAfterSpace ) {
 					currentRow.push(child);
 					currentRowLength = currentRowTentativeLength;
 				} else {
 					rows.push(currentRow = [child]);
-					currentRowLength = cLength;
+					currentRowLength = alongBeforeSpace + cLength;
 				}
 			}
 		}
@@ -427,22 +445,25 @@ class PackedFlexRasterable implements PackedRasterable {
 		const sizedChildren : CompoundChild<BoundedRasterable>[] = [];
 		const rowInfos = [];
 		
-		let totalDepth = 0;
+		let totalDepth = acrossBeforeSpace;
 		let totalGrowAcross = 0;
 		let totalShrinkAcross = 0;
-		// TODO: Calculate row packed widths, then distribute
-		// remaining space across them (ignoring flexGrow, I guess)
 		for( let r=0; r<rows.length; ++r ) {
+			if( r > 0 ) totalDepth += acrossBetweenSpace;
+			
 			const row = rows[r];
 			let rowMaxDepth = 0;
-			let rowTotalLength = 0;
+			let rowTotalLength = alongBeforeSpace;
 			let rowTotalShrinkAlong = 0;
 			let rowTotalGrowAlong = 0;
 			let rowTotalGrowAcross = 0;
 			let rowTotalShrinkAcross = 0;
 			let rowMinGrowAcross = 1000;
 			
-			for( const child of row ) {
+			for( let c=0; c<row.length; ++c ) {
+				if( c > 0 ) rowTotalLength += alongBeforeSpace;
+				
+				const child   = row[c];
 				const cBounds = child.component.bounds;
 				const cWidth  = cBounds.x1 - cBounds.x0;
 				const cHeight = cBounds.y1 - cBounds.y0;
@@ -457,6 +478,8 @@ class PackedFlexRasterable implements PackedRasterable {
 				rowTotalShrinkAcross += child.flexShrinkAcross;
 				rowMinGrowAcross = Math.min(child.flexGrowAcross, rowMinGrowAcross);
 			}
+			rowTotalLength += alongAfterSpace;
+			
 			totalDepth += rowMaxDepth; // TODO: Add border width, if borders between rows
 			const rowGrowAcross   = rowMinGrowAcross; // rowTotalGrowAcross   / row.length;
 			const rowShrinkAcross = rowTotalShrinkAcross / row.length;
@@ -471,33 +494,38 @@ class PackedFlexRasterable implements PackedRasterable {
 				flexShrinkAcross: rowShrinkAcross
 			});
 		}
+		totalDepth += acrossAfterSpace;
 		const leftoverDepth = boxDepth - totalDepth;
 		
 		const totalGrowAcrossish = Math.max(1, totalGrowAcross);
 		
 		let maxRowLength = 0;
-		let across = 0;
+		let across = acrossBeforeSpace;
 		for( let r=0; r<rows.length; ++r ) {
+			if( r > 0 ) across += acrossBetweenSpace;
+			
 			const row = rows[r];
-			let along = 0;
+			let along = alongBeforeSpace;
 			const rowInfo = rowInfos[r];
-			const remainingDepth = boxDepth - across;
-			const rowFlexAcross = leftoverDepth > 0 ? rowInfo.flexGrowAcross : rowInfo.flexShrinkAcross;
+			const remainingDepth = boxDepth - acrossAfterSpace - across;
+			const rowFlexAcross = leftoverDepth > 0 ? rowInfo.flexGrowAcross : -rowInfo.flexShrinkAcross;
 			const rowDepth = Math.max(0,
-				rowFlexAcross > 0 && r == rows.length - 1 ? remainingDepth :
-				Math.min(remainingDepth, Math.round(rowInfo.maxDepth + leftoverDepth * rowFlexAcross / totalGrowAcrossish)),
+				rowFlexAcross > 0 && r == rows.length - 1 ? remainingDepth : 0,
+				Math.round(rowInfo.maxDepth + leftoverDepth * rowFlexAcross / totalGrowAcrossish),
 			)
 			
 			const leftoverLength = boxLength - rowInfo.totalLength;
 			const totalGrowish = Math.max(1, rowInfo.totalGrowAlong); // To avoid dividing by zero
 			
 			for( let c=0; c<row.length; ++c ) {
+				if( c > 0 ) along += alongBetweenSpace;
+				
 				const child = row[c];
 				const cBounds = child.component.bounds;
 				const cWidth  = cBounds.x1 - cBounds.x0;
 				const cHeight = cBounds.y1 - cBounds.y0;
 				const cLength = horiz ? cWidth : cHeight;
-				const remainingLength = boxLength - along;
+				const remainingLength = boxLength - alongAfterSpace - along;
 				const cFlexAlong = leftoverLength > 0 ? child.flexGrowAlong : child.flexShrinkAlong;
 				const filledLength = Math.max(0,
 					cFlexAlong > 0 && c == row.length - 1 ? remainingLength :
@@ -518,10 +546,12 @@ class PackedFlexRasterable implements PackedRasterable {
 				});
 				along += filledLength;
 			}
+			along += alongAfterSpace;
 			
 			across += rowDepth;
 			maxRowLength = Math.max(maxRowLength, along);
 		}
+		across += acrossAfterSpace;
 		
 		const bounds = {
 			x0: 0, y0: 0,
@@ -529,14 +559,18 @@ class PackedFlexRasterable implements PackedRasterable {
 			y1: horiz ? across : maxRowLength,
 		};
 		
+		const bg = this.#background.fillRegion(bounds);
+		if( !boundsAreEqual(bg.bounds, bounds) ) {
+			throw new Error(`Fuck!!`);
+		}
+		
 		return new SizedCompoundRasterable(
-			this.#background.fillRegion(bounds),
+			bg,
 			sizedChildren
 		);
 	}
 }
 
-// TODO: Replace with function FlexParent (an options/properties object) -> AbstractRasterable
 class AbstractFlexRasterable implements AbstractRasterable {
 	// For now, #across is implicitly "right" or "down"
 	readonly #background : RegionFillingRasterableGenerator;
@@ -549,6 +583,16 @@ class AbstractFlexRasterable implements AbstractRasterable {
 		this.#options    = options   ;
 	}
 	pack(): PackedRasterable {
+		const {
+			alongDirection,
+			acrossAfterSpace,
+			acrossBeforeSpace,
+			acrossBetweenSpace,
+			alongAfterSpace,
+			alongBeforeSpace,
+			alongBetweenSpace,
+		} = this.#options;
+		
 		const packedChildren = this.#children.map(c => ({
 			component: c.component.pack(),
 			flexGrowAlong: c.flexGrowAlong,
@@ -556,18 +600,21 @@ class AbstractFlexRasterable implements AbstractRasterable {
 			flexShrinkAlong: c.flexShrinkAlong,
 			flexShrinkAcross: c.flexShrinkAcross,
 		}));
-		let totalWidth = 0;
-		let totalHeight = 0;
-		if( this.#options.alongDirection == "right" ) {
+		const horiz = alongDirection == "right";
+		const totalAlongSpace  = alongBeforeSpace + Math.max(0, packedChildren.length-1) * alongBetweenSpace + alongAfterSpace;
+		const totalAcrossSpace = acrossBeforeSpace + acrossAfterSpace; // One row => no between
+		let totalWidth  = horiz ? totalAlongSpace : totalAcrossSpace;
+		let totalHeight = horiz ? totalAcrossSpace : totalAlongSpace;
+		if( horiz ) {
 			for( const child of packedChildren ) {
 				const bounds = child.component.bounds;
-				totalWidth += bounds.x1 - bounds.x0;
-				totalHeight = Math.max(totalHeight, bounds.y1 - bounds.y0);
+				totalWidth  += bounds.x1 - bounds.x0;
+				totalHeight  = Math.max(totalHeight, bounds.y1 - bounds.y0 + totalAcrossSpace);
 			}
 		} else {
 			for( const child of packedChildren ) {
 				const bounds = child.component.bounds;
-				totalWidth  = Math.max(totalWidth, bounds.x1 - bounds.x0);
+				totalWidth   = Math.max(totalWidth, bounds.x1 - bounds.x0 + totalAcrossSpace);
 				totalHeight += bounds.y1 - bounds.y0;
 			}
 		}
@@ -584,8 +631,8 @@ function* addSep<T>(sep:T, items:Iterable<T>) : Iterable<T> {
 	}
 }
 
-export function makeFlex(along:FlexDirection, background:RegionFillingRasterableGenerator, children:FlexChild<AbstractRasterable>[]) {
-	return new AbstractFlexRasterable(background, children, massageFlexOptions({alongDirection:along}));
+export function makeFlex(along:FlexDirection, background:RegionFillingRasterableGenerator, children:FlexChild<AbstractRasterable>[], options:Omit<FlexOptions, "alongDirection">={}) {
+	return new AbstractFlexRasterable(background, children, massageFlexOptions({alongDirection:along, ...options}));
 }
 
 export function makeSeparatedFlex(along:FlexDirection, background:RegionFillingRasterableGenerator, separator:FlexChild<AbstractRasterable>, children:Iterable<FlexChild<AbstractRasterable>>) {

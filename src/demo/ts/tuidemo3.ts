@@ -299,7 +299,6 @@ function mkSimpleTextRasterable(spans:{text:string, style:Style}[], background=b
 
 function mkTextRasterable(spans:{text:string, style:Style}[], background=blackBackground) : AbstractRasterable {
 	return makeFlex("right", background, [
-		oneCharPad,
 		...spans.map(span => {
 			const rast = textToRaster(span.text, span.style);
 			return {
@@ -310,15 +309,22 @@ function mkTextRasterable(spans:{text:string, style:Style}[], background=blackBa
 				flexShrinkAcross: 0,
 			}
 		}),
-		oneCharPad,
 		{
+			// This bit is necessary before there's not yet any way
+			// to tell a component to align itself right or left
+			// (default is to center everything)
+			// the padding ensures that it fills the entire space,
+			// so alignment is irrelevant.
 			component: flexySpace,
 			flexGrowAlong: 1,
 			flexGrowAcross: 0,
 			flexShrinkAlong: 1,
 			flexShrinkAcross: 0,
 		}
-	]); // Maybe add a padding one at the end
+	], {
+		alongBeforeSpace: 1,
+		alongAfterSpace: 1,
+	}); // Maybe add a padding one at the end
 }
 
 function simpleBordered(char:string, style:Style, interior:AbstractRasterable) : AbstractRasterable {
@@ -371,11 +377,16 @@ function lineBordered(bdcLineStyle:LineStyle, lineStyle:Style, interior:Abstract
 	);
 }
 
-const LINE_BORDER_PLACEHOLDER = "?"; // TODO: Pick some placeholder char, and actually replace it with line borders
-
 const blackBackground = makeSolidGenerator(" ", ansi.BLACK_BACKGROUND);
-const blueBackground = makeSolidGenerator(".", ansi.BLUE_BACKGROUND);
-const protoBorder = new PaddingRasterable({x0:0, y0:0, x1:1, y1:1}, makeSolidGenerator(LINE_BORDER_PLACEHOLDER, ansi.BRIGHT_CYAN_TEXT));
+const blueBackground = makeSolidGenerator(" ", ansi.BLUE_BACKGROUND);
+/**
+ * I use cyanBackground to mark regions that should be hidden;
+ * if cyan background shows up, there's a problem somewhere!
+ */
+const cyanBackground = makeSolidGenerator("!", ansi.CYAN_BACKGROUND);
+const redBackground = makeSolidGenerator(" ", ansi.RED_BACKGROUND);
+/** toBeLined = placeholder until I figure out how to draw lines */
+const toBeLined = makeSolidGenerator("▀", ansi.BRIGHT_CYAN_TEXT+ansi.CYAN_BACKGROUND);
 
 class BoxesAppInstance extends DemoAppInstance implements SizedRasterable {
 	constructor(ctx:PossiblyTUIAppContext) {
@@ -504,23 +515,19 @@ function statusDataToAR(thing:StatusData) : AbstractRasterable {
 		flexShrinkAlong: 1,
 		flexShrinkAcross: 1,
 	})
-	return makeFlex("down", blueBackground, components);
+	return makeFlex("down", cyanBackground, components);
 }
 function statusDatasToAR(things:StatusData[]) : AbstractRasterable {
-	return makeSeparatedFlex("down", blackBackground, {
-		component: protoBorder,
-		flexGrowAlong: 0,
-		flexGrowAcross: 1,
-		flexShrinkAlong: 1,
-		flexShrinkAcross: 1,
-	}, things.map(sd => ({
+	return makeFlex("down", toBeLined, things.map(sd => ({
 		// TODO: Allow them to grow across, but not along!
 		component: statusDataToAR(sd),
 		flexGrowAlong: 0,
 		flexGrowAcross: 1,
 		flexShrinkAlong: 1,
 		flexShrinkAcross: 1,
-	})));
+	})), {
+		space: 1
+	});
 }
 
 class StatusMockupAppInstance extends DemoAppInstance implements SizedRasterable {
@@ -547,15 +554,20 @@ class StatusMockupAppInstance extends DemoAppInstance implements SizedRasterable
 	}
 	
 	_buildScene(_size:Vec2D<number>) : SizedRasterable {
-		return new AbstractComponentWrapper(makeFlex("down", blueBackground, [
-			{
-				component: makeBorderedAbstractRasterable(protoBorder, 1, statusDatasToAR(this.#statusDatas)),
-				flexGrowAlong: 0,
-				flexGrowAcross: 0,
-				flexShrinkAcross: 0,
-				flexShrinkAlong: 0,
-			}
-		]));
+		let main = statusDatasToAR(this.#statusDatas);
+		const demoNestedFlexBox = true;
+		if( demoNestedFlexBox ) {
+			main = makeFlex("down", blueBackground, [
+				{
+					component: main,
+					flexGrowAlong: 0,
+					flexGrowAcross: 0,
+					flexShrinkAcross: 0,
+					flexShrinkAlong: 0,
+				}
+			]);
+		}
+		return new AbstractComponentWrapper(main);
 	}
 	
 	rasterForSize(size: Vec2D<number>): TextRaster2 {
