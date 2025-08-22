@@ -528,6 +528,8 @@ take into account children's new size after inflating!
 
 ![Screenshot showing a parent flexbox failing to take into account a child's post-inflation width](http://picture-files.nuke24.net/uri-res/raw/urn:bitprint:S4536LZPK2UDGPYZ6KPDM7HYQUP5XH7U.MB5QQS3I3UF7DSBFRN2Q4OWPHD72TVNAFEAT7AA/20250822T17-PackFail.png)
 
+(Also, why is the border at the top two lines tall instead of one?)
+
 Proposed solution: `pack` to take a container size parameter.
 Obejcts should still try to pack into the smallest space possible,
 but they can take those dimensions into account.
@@ -539,6 +541,8 @@ the 'Bill' box of `status-mockup` somehow
 ends up with a space at the top, cuurrently marked with a cyan background.
 
 ![Exclamation points on cyan background indicate "this area should not be showing"](http://picture-files.nuke24.net/uri-res/raw/urn:bitprint:C5BHVSYK54ASWXZBRDI3DGKD5GPF345E.SDSH7EA3X5XNBCRRTCY5KQ6SBERJR6F5PLBC5DQ/20250822T17-PackFail2.png)
+
+This may be the same issue as the inappropriately two-line-tall border shown in the previous screenshot.
 
 ### To-do
 
