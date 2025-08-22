@@ -279,8 +279,9 @@ export class SizedCompoundRasterable implements BoundedRasterable {
 	
 	rasterForRegion(region: AABB2D<number>): TextRaster2 {
 		let rast = this.#background.rasterForRegion(region);
-		const bgx0 = this.#background.bounds.x0;
-		const bgy0 = this.#background.bounds.y0;
+		const rastBounds = centeredExpandedBounds(region, rast.size);
+		const bgx0 = rastBounds.x0;
+		const bgy0 = rastBounds.y0;
 		for( const child of this.#children ) {
 			const fillSize     = boundsToSize(child.bounds);
 			const adjustedInternalBounds = centeredExpandedBounds(child.component.bounds, fillSize);
@@ -291,7 +292,7 @@ export class SizedCompoundRasterable implements BoundedRasterable {
 			// - Let child generate its bounds, then center it
 			const childRast = child.component.rasterForRegion(adjustedInternalBounds);
 			const childRastClipped = assertRasterSize(childRast, fillSize);
-			rast = blitToRaster(rast, {x: child.bounds.x0 - region.x0 - bgx0, y: child.bounds.y0 - region.y0 - bgy0}, childRastClipped);
+			rast = blitToRaster(rast, {x: child.bounds.x0 - bgx0, y: child.bounds.y0 - bgy0}, childRastClipped);
 			// rast = drawTextToRaster(rast, {x: child.bounds.x1 - 20, y: child.bounds.y1 - bgy0 - 1}, regStr(this.#background.bounds) + " / " + regStr(adjustedInternalBounds), GREEN_TEXT);
 		}
 		// rast = drawTextToRaster(rast, {x:2, y:0}, regStr(region), CYAN_TEXT);

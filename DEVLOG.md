@@ -505,10 +505,9 @@ and overlaying some debug information onto the resulting rasters,
 I found the bug in `SizedCompoundRasterable#rasterForRegion`
 that was resulting in things not being centered.
 
-I was failing to subtract the region's top left corner
-from the position of the child when calculating
-the offset into the resulting raster,
-so it was as if the region in question always had its top/left at 0,0.
+I was subtracting the top-left corner position of `this.bounds` (effectively),
+but should have been subtracing the position of the top-left corner
+of the raster!
 
 Now everything seems to be working properly.
 
