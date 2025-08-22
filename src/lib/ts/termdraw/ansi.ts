@@ -3,6 +3,8 @@ import DrawCommand from './DrawCommand.ts';
 
 export const RESET_FORMATTING = "\x1b[0m";
 
+export const DEFAULT_STYLE = "";
+
 //// Foreground colors
 
 export const BLACK_TEXT                = "\x1b[30m";

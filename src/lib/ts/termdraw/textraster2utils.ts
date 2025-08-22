@@ -1,8 +1,8 @@
-import TextRaster2, { Style } from './TextRaster2.ts';
+import TextRaster2, { Character, Style } from './TextRaster2.ts';
 import DrawCommand from './DrawCommand.ts';
 import AABB2D from './AABB2D.ts';
 import Vec2D from './Vec2D.ts';
-import { RESET_FORMATTING } from './ansi.ts';
+import { DEFAULT_STYLE } from './ansi.ts';
 import { intersection } from './boundsutils.ts';
 import { assert } from 'https://deno.land/std@0.165.0/testing/asserts.ts';
 
@@ -49,12 +49,12 @@ export function* textRaster2ToLines(
 			const chars:string[] = [];
 			for( x=spanX0; x<spanX1; ++x ) {
 				const rChar = raster.chars[y][x];
-				chars.push(rChar == "" ? emptyChar : rChar);
+				chars.push(rChar == undefined ? emptyChar : rChar);
 			}
 			if( spanStyle != cursorStyle ) {
 				yield {
 					classRef: "x:EmitStyleChange",
-					sequence: cursorStyle = spanStyle
+					sequence: cursorStyle = spanStyle ?? DEFAULT_STYLE,
 				};
 			}
 			yield {
@@ -62,10 +62,12 @@ export function* textRaster2ToLines(
 				text: chars.join(''),
 			};
 		}
-		if( cursorStyle != RESET_FORMATTING ) yield {
-			classRef: "x:EmitStyleChange",
-			sequence: cursorStyle = RESET_FORMATTING,
-		};
+		if( cursorStyle != "" ) {
+			yield {
+				classRef: "x:EmitStyleChange",
+				sequence: cursorStyle = DEFAULT_STYLE,
+			};
+		}
 		yield afterLine;
 	}
 }
@@ -103,12 +105,12 @@ export function* textRaster2ToDrawCommands(
 					}
 					const chars:string[] = [];
 					for( x=spanX0; x<spanX1; ++x ) {
-						chars.push(raster.chars[y][x]);
+						chars.push(raster.chars[y][x] ?? " ");
 					}
 					if( spanStyle != cursorStyle ) {
 						yield {
 							classRef: "x:EmitStyleChange",
-							sequence: cursorStyle = spanStyle
+							sequence: cursorStyle = spanStyle ?? DEFAULT_STYLE
 						};
 					}
 					yield {
@@ -120,10 +122,12 @@ export function* textRaster2ToDrawCommands(
 			}
 		}
 	}
-	if( cursorStyle != RESET_FORMATTING ) yield {
-		classRef: "x:EmitStyleChange",
-		sequence: cursorStyle = RESET_FORMATTING,
-	};
+	if( cursorStyle != DEFAULT_STYLE ) {
+		yield {
+			classRef: "x:EmitStyleChange",
+			sequence: cursorStyle = DEFAULT_STYLE,
+		};
+	}
 }
 
 // toChars will be important for translating x:EmitText to chars for a raster
@@ -155,14 +159,15 @@ export function createUniformRaster(size:Vec2D<number>, char:string, style:strin
 	})
 }
 
-function blitRowNoBoundsCheck<T>(canvas:T[], offset:number, stamp:T[], stampOffset0:number, stampOffset1:number) : T[] {
+function blitRowNoBoundsCheck<T>(canvas:T[], offset:number, stamp:(T|undefined)[], stampOffset0:number, stampOffset1:number) : T[] {
 	const result = [];
 	let anythingChanged = false;
 	const x0 = offset;
 	const x1 = offset + stampOffset1-stampOffset0;
 	for( let i=0; i<canvas.length; ++i ) {
-		const dat = i < x0 || i >= x1 ? canvas[i] : stamp[stampOffset0 + i - x0];
-		if( canvas[i] != dat ) anythingChanged = true;
+		let dat = i < x0 || i >= x1 ? canvas[i] : stamp[stampOffset0 + i - x0];
+		if( dat == undefined ) dat = canvas[i];
+		else if( canvas[i] != dat ) anythingChanged = true;
 		result[i] = dat;
 	}
 	return anythingChanged ? result : canvas;
@@ -171,8 +176,8 @@ function blitRowNoBoundsCheck<T>(canvas:T[], offset:number, stamp:T[], stampOffs
 function blitCanvasNoBoundsCheck(canvas:TextRaster2, offsetOntoCanvas:Vec2D<number>, stampRaster:TextRaster2, stampRegion:AABB2D<number>) : TextRaster2 {
 	const destY0 = offsetOntoCanvas.y;
 	const destY1 = destY0 + stampRegion.y1 - stampRegion.y0;
-	const resultChars  : string[][] = [];
-	const resultStyles :  Style[][] = [];
+	const resultChars  : (Character|undefined)[][] = [];
+	const resultStyles : (Style|undefined)[][] = [];
 	let anythingChanged : boolean = false;
 	for( let row=0; row<canvas.size.y; ++row ) {
 		if( row < destY0 || row >= destY1 ) {
@@ -279,11 +284,11 @@ export function drawTextToRaster(canvas:TextRaster2, offset:Vec2D<number>, text:
 
 export function drawCommandsToRaster(canvas:TextRaster2, commands:Iterable<DrawCommand>) : TextRaster2 {
 	let currentOffset : Vec2D<number> = {x:0, y:0};
-	let currentStyle  : Style = RESET_FORMATTING;
+	let currentStyle  : Style = DEFAULT_STYLE;
 	for( const command of commands ) {
 		switch( command.classRef ) {
 		case 'x:ClearScreen':
-			canvas = createUniformRaster(canvas.size, " ", RESET_FORMATTING);
+			canvas = createUniformRaster(canvas.size, " ", DEFAULT_STYLE);
 			// TODO: Handle the other cases!
 			break;
 		case 'x:EmitLiteral':

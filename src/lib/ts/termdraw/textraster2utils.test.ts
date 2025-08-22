@@ -1,6 +1,6 @@
 import { assertEquals, assertNotEquals, assertStrictEquals } from "https://deno.land/std@0.165.0/testing/asserts.ts";
 import TextRaster2 from "./TextRaster2.ts";
-import { RESET_FORMATTING, RED_TEXT } from "./ansi.ts";
+import { RED_TEXT, DEFAULT_STYLE } from "./ansi.ts";
 import { textRaster2ToDrawCommands, createUniformRaster, blitToRaster } from './textraster2utils.ts';
 import { toChars } from './textraster2utils.ts';
 import AABB2D from './AABB2D.ts';
@@ -16,7 +16,7 @@ interface AbstractRastMan<T> {
 const FAMILY_EMOJI = "\uD83D\uDC69\u200D\uD83D\uDC69\u200D\uD83D\uDC67\u200D\uD83D\uDC66";
 
 Deno.test("textRaster2ToDrawCommands 'foo'", () => {
-	const style = RESET_FORMATTING;
+	const style = DEFAULT_STYLE;
 	const theRaster : TextRaster2 = {
 		size: {x: 3, y: 1},
 		chars: [["f","o","o"]],
@@ -34,13 +34,13 @@ const THREEBYTHREE = ((s:string,r:string) => ({
 	size: {x: 3, y: 3},
 	chars: [["f","o","o"],["b","","r"],["{",FAMILY_EMOJI,"}"]],
 	styles: [[s,s,s],[r,r,r],[s,s,s]],
-}))(RESET_FORMATTING, RED_TEXT);
+}))(DEFAULT_STYLE, RED_TEXT);
 
 function textThreeByThreeRaster2ToDrawCommands(offset:Vec2D<number>) {
 	const actualCommands = textRaster2ToDrawCommands(THREEBYTHREE, [{x0:0,y0:0,x1:3,y1:3}], offset);
 	assertEquals([...actualCommands], [
 		{classRef:"x:Move", x:offset.x+0, y:offset.y+0},
-		{classRef:"x:EmitStyleChange", sequence:RESET_FORMATTING},
+		{classRef:"x:EmitStyleChange", sequence:DEFAULT_STYLE},
 		{classRef:"x:EmitText", text:"foo"},
 		
 		{classRef:"x:Move", x:offset.x+0, y:offset.y+1},
@@ -51,7 +51,7 @@ function textThreeByThreeRaster2ToDrawCommands(offset:Vec2D<number>) {
 		{classRef:"x:EmitText", text:"r"},
 		
 		{classRef:"x:Move", x:offset.x+0, y:offset.y+2},
-		{classRef:"x:EmitStyleChange", sequence:RESET_FORMATTING},
+		{classRef:"x:EmitStyleChange", sequence:DEFAULT_STYLE},
 		{classRef:"x:EmitText", text:`{${FAMILY_EMOJI}}`},
 	]);
 }
@@ -86,7 +86,7 @@ Deno.test("createUniformRaster", () => {
 
 
 Deno.test("blit nothing to canvas", () => {
-	const canvas = createUniformRaster({x: 4, y:4}, ".", RESET_FORMATTING);
+	const canvas = createUniformRaster({x: 4, y:4}, ".", DEFAULT_STYLE);
 	const stamp  = createUniformRaster({x: 0, y:0}, ".", RED_TEXT);
 	
 	const result = blitToRaster(canvas, {x:2, y:1}, stamp, {x0:0, y0:0, x1:0, y1:0});
@@ -94,7 +94,7 @@ Deno.test("blit nothing to canvas", () => {
 });
 
 Deno.test("blit zero-sized slice of something to canvas", () => {
-	const canvas = createUniformRaster({x: 4, y:4}, ".", RESET_FORMATTING);
+	const canvas = createUniformRaster({x: 4, y:4}, ".", DEFAULT_STYLE);
 	const stamp  = createUniformRaster({x: 2, y:2}, ".", RED_TEXT);
 	
 	const result = blitToRaster(canvas, {x:2, y:1}, stamp, {x0:0, y0:0, x1:0, y1:0});
@@ -104,7 +104,7 @@ Deno.test("blit zero-sized slice of something to canvas", () => {
 Deno.test("blit 1x1 square to 1x1 canvas", () => {
 	const c0 = ".";
 	const c1 = ";";
-	const s0 = RESET_FORMATTING;
+	const s0 = DEFAULT_STYLE;
 	const s1 = RED_TEXT;
 	
 	const canvas = createUniformRaster({x: 1, y: 1}, c0, s0);
@@ -124,7 +124,7 @@ Deno.test("blit 1x1 square to 1x1 canvas", () => {
 Deno.test("blit 1x1 square to 2x1 canvas at 0,0", () => {
 	const c0 = ".";
 	const c1 = ";";
-	const s0 = RESET_FORMATTING;
+	const s0 = DEFAULT_STYLE;
 	const s1 = RED_TEXT;
 	
 	const canvas = createUniformRaster({x: 2, y: 1}, c0, s0);
@@ -144,7 +144,7 @@ Deno.test("blit 1x1 square to 2x1 canvas at 0,0", () => {
 Deno.test("blit 1x1 square to 2x1 canvas at 0,1", () => {
 	const c0 = ".";
 	const c1 = ";";
-	const s0 = RESET_FORMATTING;
+	const s0 = DEFAULT_STYLE;
 	const s1 = RED_TEXT;
 	
 	const canvas = createUniformRaster({x: 2, y: 1}, c0, s0);
@@ -165,7 +165,7 @@ Deno.test("blit 1x1 square to 2x1 canvas at 0,1", () => {
 Deno.test("blit 2x2 square to 4x4 canvas at 2,2", () => {
 	const c0 = ".";
 	const c1 = ";";
-	const s0 = RESET_FORMATTING;
+	const s0 = DEFAULT_STYLE;
 	const s1 = RED_TEXT;
 	
 	const canvas = createUniformRaster({x: 4, y: 4}, c0, s0);
@@ -195,7 +195,7 @@ Deno.test("blit 2x2 square to 4x4 canvas at 2,2", () => {
 Deno.test("blit 2x2 square to 4x4 canvas at -1,-1", () => {
 	const c0 = ".";
 	const c1 = ";";
-	const s0 = RESET_FORMATTING;
+	const s0 = DEFAULT_STYLE;
 	const s1 = RED_TEXT;
 	
 	const canvas = createUniformRaster({x: 4, y: 4}, c0, s0);
@@ -225,7 +225,7 @@ Deno.test("blit 2x2 square to 4x4 canvas at -1,-1", () => {
 Deno.test("blit 2x2 square to 4x4 canvas at 3,3", () => {
 	const c0 = ".";
 	const c1 = ";";
-	const s0 = RESET_FORMATTING;
+	const s0 = DEFAULT_STYLE;
 	const s1 = RED_TEXT;
 	
 	const canvas = createUniformRaster({x: 4, y: 4}, c0, s0);
@@ -255,7 +255,7 @@ Deno.test("blit 2x2 square to 4x4 canvas at 3,3", () => {
 Deno.test("blit 2x2 square to 4x4 canvas with no changes", () => {
 	const c0 = ".";
 	const c1 = c0;
-	const s0 = RESET_FORMATTING;
+	const s0 = DEFAULT_STYLE;
 	const s1 = s0;
 	
 	const canvas = createUniformRaster({x: 4, y: 4}, c0, s0);
@@ -269,7 +269,7 @@ Deno.test("blit 2x2 square to 4x4 canvas with no changes", () => {
 Deno.test("blit 4x4 square to 2x2 canvas, centered", () => {
 	const c0 = ".";
 	const c1 = "X";
-	const s0 = RESET_FORMATTING;
+	const s0 = DEFAULT_STYLE;
 	const s1 = RED_TEXT;
 	
 	const canvas  = createUniformRaster({x: 2, y: 2}, c0, s0);
@@ -284,7 +284,7 @@ Deno.test("blit 4x4 square to 2x2 canvas, centered", () => {
 Deno.test("blit 2x2 square to 2x2 canvas at [-1,0]", () => {
 	const c0 = ".";
 	const c1 = "X";
-	const s0 = RESET_FORMATTING;
+	const s0 = DEFAULT_STYLE;
 	const s1 = RED_TEXT;
 	
 	const canvas  = createUniformRaster({x: 2, y: 2}, c0, s0);
@@ -311,7 +311,7 @@ Deno.test("blit 2x2 square to 2x2 canvas at [-1,0]", () => {
 Deno.test("blit 4x4 square to 2x2 canvas at [-3,0]", () => {
 	const c0 = ".";
 	const c1 = "X";
-	const s0 = RESET_FORMATTING;
+	const s0 = DEFAULT_STYLE;
 	const s1 = RED_TEXT;
 	
 	const canvas  = createUniformRaster({x: 2, y: 2}, c0, s0);

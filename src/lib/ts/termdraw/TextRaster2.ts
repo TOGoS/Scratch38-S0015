@@ -5,6 +5,6 @@ export type Style = string;
 
 export default interface TextRaster2 {
 	size : Vec2D<number>;
-	chars  : Character[][];
-	styles : Style[][];
+	chars  : (Character|undefined)[][];
+	styles : (Style|undefined)[][];
 }
