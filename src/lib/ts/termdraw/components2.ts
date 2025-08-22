@@ -262,6 +262,10 @@ interface CompoundChild<T> {
 	bounds: AABB2D<number>,
 }
 
+function regStr(region:AABB2D<number>) : string {
+	return `${region.x0},${region.y0};${region.x1},${region.y1}`;
+}
+
 export class SizedCompoundRasterable implements BoundedRasterable {
 	readonly #background : BoundedRasterable;
 	readonly #children : CompoundChild<BoundedRasterable>[];
@@ -287,8 +291,10 @@ export class SizedCompoundRasterable implements BoundedRasterable {
 			// - Let child generate its bounds, then center it
 			const childRast = child.component.rasterForRegion(adjustedInternalBounds);
 			const childRastClipped = assertRasterSize(childRast, fillSize);
-			rast = blitToRaster(rast, {x: child.bounds.x0 - bgx0, y: child.bounds.y0 - bgy0}, childRastClipped);
+			rast = blitToRaster(rast, {x: child.bounds.x0 - region.x0 - bgx0, y: child.bounds.y0 - region.y0 - bgy0}, childRastClipped);
+			// rast = drawTextToRaster(rast, {x: child.bounds.x1 - 20, y: child.bounds.y1 - bgy0 - 1}, regStr(this.#background.bounds) + " / " + regStr(adjustedInternalBounds), GREEN_TEXT);
 		}
+		// rast = drawTextToRaster(rast, {x:2, y:0}, regStr(region), CYAN_TEXT);
 		return rast;
 	}
 }
@@ -488,15 +494,6 @@ export class PackedFlexRasterable implements PackedRasterable {
 			x1: horiz ? maxRowLength : across,
 			y1: horiz ? across : maxRowLength,
 		};
-		
-		// TODO: Remove this "X" that's here for debugging
-		sizedChildren.push({
-			bounds: {
-				x0: bounds.x1, y0: bounds.y0,
-				x1: bounds.x1+1, y1: bounds.y0+1,
-			},
-			component: makeSolidGenerator("X","")
-		});
 		
 		return new SizedCompoundRasterable(
 			this.#background.fillRegion(bounds),
