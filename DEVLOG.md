@@ -496,6 +496,25 @@ It's kind of hard to debug this stuff.
 I should probably remove the stuff where everything implements everything,
 because I think it is causing confusion.
 
+### I got it centered!
+
+After writing several unit tests,
+refactoring how transparency and default styles are represented in `TextRaster2`s
+(undefined and empty string, respectively),
+and overlaying some debug information onto the resulting rasters,
+I found the bug in `SizedCompoundRasterable#rasterForRegion`
+that was resulting in things not being centered.
+
+I was failing to subtract the region's top left corner
+from the position of the child when calculating
+the offset into the resulting raster,
+so it was as if the region in question always had its top/left at 0,0.
+
+Now everything seems to be working properly.
+
+![Centered boxes screenshot](http://picture-files.nuke24.net/uri-res/raw/urn:bitprint:PMDMGPSQGTJ4AQLUULLAJVO3PQP4SKL5.B2MXEOAUZCIXCY5IAAJTS2JBIQ6V7CA7DTJBGBA/20250821T23-CenteredBoxes.png)
+![Centered status mockup screenshot](http://picture-files.nuke24.net/uri-res/raw/urn:bitprint:E4QJAAU3KRCYTUMGM6NKAXZUH2J2TWVQ.ECFYJF4NN47QQKMGC3FHLLFW4IQQNS6EIADQWJI/20250821T23-CenteredStatus.png)
+
 ### To-do
 
 #### Demo improvements
@@ -503,7 +522,7 @@ because I think it is causing confusion.
 - [X] Actually draw borders!
 - [\] Padding so that status boxes aren't stretched
   - Implemented by respecting `flexGrow: 0`
-- [ ] Why are boxes and status-mockup content not centered?
+- [X] Why are boxes and status-mockup content not centered?
   - What I expect to happen is that `fillRegion` returns a BoundedRasterable
     of the given size, and then the outer (stretched to fill the screen) component
     calculates a region centered on that of the stretched size,
