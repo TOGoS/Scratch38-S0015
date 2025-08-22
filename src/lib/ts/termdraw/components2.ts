@@ -326,6 +326,26 @@ export class PaddingRasterable implements AbstractRasterable, PackedRasterable, 
 
 // TODO: right/left/up/down
 export type FlexDirection = "right"|"down";
+type FlexOptionsMassaged = {
+	alongDirection: FlexDirection;
+	alongBeforeSpace: number;
+	alongBetweenSpace: number;
+	alongAfterSpace: number;
+	acrossBeforeSpace: number;
+	acrossBetweenSpace: number;
+	acrossAfterSpace: number;
+}
+export type FlexOptions = {
+	alongDirection: FlexDirection;
+	alongBeforeSpace?: number;
+	alongBetweenSpace?: number;
+	alongAfterSpace?: number;
+	acrossBeforeSpace?: number;
+	acrossBetweenSpace?: number;
+	acrossAfterSpace?: number;
+	/* Shorthand for all the above */
+	space?: number;
+}
 export interface FlexChild<T> {
 	component       : T;
 	flexGrowAlong   : number;
@@ -334,26 +354,39 @@ export interface FlexChild<T> {
 	flexShrinkAcross: number;
 }
 
+function massageFlexOptions(opts:FlexOptions) : FlexOptionsMassaged {
+	const space = opts.space ?? 0;
+	return {
+		alongDirection: opts.alongDirection,
+		alongBeforeSpace  : opts.alongBeforeSpace   ?? space,
+		alongBetweenSpace : opts.alongBetweenSpace  ?? space,
+		alongAfterSpace   : opts.alongAfterSpace    ?? space,
+		acrossBeforeSpace : opts.acrossBeforeSpace  ?? space,
+		acrossBetweenSpace: opts.acrossBetweenSpace ?? space,
+		acrossAfterSpace  : opts.acrossAfterSpace   ?? space,
+	}
+}
+
 /*
  * Hmm: Maybe the FlexRasterable itself should add borders
  * between rows and columns, since the constructor can't
  * know where the between-rows borders will end up!
  */
-export class PackedFlexRasterable implements PackedRasterable {
+class PackedFlexRasterable implements PackedRasterable {
 	readonly bounds : AABB2D<number>;
 	readonly #children : FlexChild<PackedRasterable>[];
-	readonly #along : FlexDirection;
 	readonly #background : RegionFillingRasterableGenerator;
-	constructor(along:FlexDirection, bounds:AABB2D<number>, background:RegionFillingRasterableGenerator, children:FlexChild<PackedRasterable>[]) {
+	readonly #options : FlexOptionsMassaged;
+	constructor(bounds:AABB2D<number>, background:RegionFillingRasterableGenerator, children:FlexChild<PackedRasterable>[], options:FlexOptionsMassaged) {
 		this.bounds = bounds;
-		this.#along = along;
 		this.#background = background;
 		this.#children = children;
+		this.#options = options;
 	}
 	
 	fillSize(size: Vec2D<number>): BoundedRasterable {
 		validateSize(size);
-		const horiz = this.#along == "right";
+		const horiz = this.#options.alongDirection == "right";
 		
 		const rows : FlexChild<PackedRasterable>[][] = [];
 		const boxWidth  = size.x;
@@ -504,17 +537,16 @@ export class PackedFlexRasterable implements PackedRasterable {
 }
 
 // TODO: Replace with function FlexParent (an options/properties object) -> AbstractRasterable
-export class AbstractFlexRasterable implements AbstractRasterable {
-	// TODO: Replace with along and across directions
-	readonly #along      : FlexDirection;
+class AbstractFlexRasterable implements AbstractRasterable {
 	// For now, #across is implicitly "right" or "down"
 	readonly #background : RegionFillingRasterableGenerator;
 	readonly #children   : FlexChild<AbstractRasterable>[];
+	readonly #options    : FlexOptionsMassaged;
 	
-	constructor(along:FlexDirection, background:RegionFillingRasterableGenerator, children:FlexChild<AbstractRasterable>[]) {
+	constructor(background:RegionFillingRasterableGenerator, children:FlexChild<AbstractRasterable>[], options:FlexOptionsMassaged) {
 		this.#children   = children  ;
 		this.#background = background;
-		this.#along      = along ;
+		this.#options    = options   ;
 	}
 	pack(): PackedRasterable {
 		const packedChildren = this.#children.map(c => ({
@@ -526,7 +558,7 @@ export class AbstractFlexRasterable implements AbstractRasterable {
 		}));
 		let totalWidth = 0;
 		let totalHeight = 0;
-		if( this.#along == "right" ) {
+		if( this.#options.alongDirection == "right" ) {
 			for( const child of packedChildren ) {
 				const bounds = child.component.bounds;
 				totalWidth += bounds.x1 - bounds.x0;
@@ -539,7 +571,7 @@ export class AbstractFlexRasterable implements AbstractRasterable {
 				totalHeight += bounds.y1 - bounds.y0;
 			}
 		}
-		return new PackedFlexRasterable(this.#along, {x0:0, y0:0, x1:totalWidth, y1:totalHeight}, this.#background, packedChildren);
+		return new PackedFlexRasterable({x0:0, y0:0, x1:totalWidth, y1:totalHeight}, this.#background, packedChildren, this.#options);
 	}
 }
 
@@ -552,8 +584,12 @@ function* addSep<T>(sep:T, items:Iterable<T>) : Iterable<T> {
 	}
 }
 
+export function makeFlex(along:FlexDirection, background:RegionFillingRasterableGenerator, children:FlexChild<AbstractRasterable>[]) {
+	return new AbstractFlexRasterable(background, children, massageFlexOptions({alongDirection:along}));
+}
+
 export function makeSeparatedFlex(along:FlexDirection, background:RegionFillingRasterableGenerator, separator:FlexChild<AbstractRasterable>, children:Iterable<FlexChild<AbstractRasterable>>) {
-	return new AbstractFlexRasterable(along, background, [...addSep(separator, children)]);
+	return makeFlex(along, background, [...addSep(separator, children)]);
 }
 
 export function makeSolidGenerator(char:string, style:Style) : AbstractRasterable&PackedRasterable&SizeFillingRasterableGenerator&RegionFillingRasterableGenerator&RegionRasterable {

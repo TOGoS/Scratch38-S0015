@@ -3,7 +3,7 @@ import * as ansi from '../../lib/ts/termdraw/ansi.ts';
 import { boundsToSize, sizeToBounds } from '../../lib/ts/termdraw/boundsutils.ts';
 import { BDC_PROP_VALUES, LineStyle } from '../../lib/ts/termdraw/boxcharprops.ts';
 import BoxDrawr from '../../lib/ts/termdraw/BoxDrawr.ts';
-import { AbstractComponentWrapper, AbstractFlexRasterable, AbstractRasterable, BoundedRasterable, FixedRasterable, FlexChild, makeBorderedAbstractRasterable, makeSeparatedFlex, makeSolidGenerator, PackedRasterable, PaddingRasterable, RegionFillingRasterableGenerator, SizedRasterable } from '../../lib/ts/termdraw/components2.ts';
+import { AbstractComponentWrapper, AbstractRasterable, BoundedRasterable, FixedRasterable, FlexChild, makeBorderedAbstractRasterable, makeFlex, makeSeparatedFlex, makeSolidGenerator, PackedRasterable, PaddingRasterable, RegionFillingRasterableGenerator, SizedRasterable } from '../../lib/ts/termdraw/components2.ts';
 import TextRaster2, { Style } from '../../lib/ts/termdraw/TextRaster2.ts';
 import { createUniformRaster, drawTextToRaster, textToRaster } from '../../lib/ts/termdraw/textraster2utils.ts';
 import Vec2D from '../../lib/ts/termdraw/Vec2D.ts';
@@ -281,7 +281,7 @@ const oneCharPad = {
 };
 
 function mkSimpleTextRasterable(spans:{text:string, style:Style}[], background=blackBackground) : AbstractRasterable {
-	return new AbstractFlexRasterable(
+	return makeFlex(
 		"right",
 		background,
 		spans.map(span => {
@@ -298,7 +298,7 @@ function mkSimpleTextRasterable(spans:{text:string, style:Style}[], background=b
 }
 
 function mkTextRasterable(spans:{text:string, style:Style}[], background=blackBackground) : AbstractRasterable {
-	return new AbstractFlexRasterable("right", background, [
+	return makeFlex("right", background, [
 		oneCharPad,
 		...spans.map(span => {
 			const rast = textToRaster(span.text, span.style);
@@ -407,11 +407,11 @@ class BoxesAppInstance extends DemoAppInstance implements SizedRasterable {
 			flexShrinkAlong: 1,
 			flexShrinkAcross: 1,
 		};
-		const texto = new AbstractFlexRasterable("down", treeBg, [
+		const texto = makeFlex("down", treeBg, [
 			{component: welcomeSpan, ...contProps},
 			{component: sizeSpan   , ...contProps},
 		]);
-		const tree = lineBordered(BDC_PROP_VALUES.DOUBLE, ansi.BOLD+ansi.BRIGHT_RED_TEXT, new AbstractFlexRasterable("down", treeBg, [
+		const tree = lineBordered(BDC_PROP_VALUES.DOUBLE, ansi.BOLD+ansi.BRIGHT_RED_TEXT, makeFlex("down", treeBg, [
 			{component: lineBordered(BDC_PROP_VALUES.LIGHT, ansi.WHITE_TEXT, texto), ...contProps},
 			// TODO: Instead of solid, make boxes
 			{component: lineBordered(BDC_PROP_VALUES.LIGHT, ansi.BOLD+ansi.RED_TEXT  , makeSolidGenerator("2", ansi.RED_TEXT  )), ...padProps},
@@ -438,7 +438,7 @@ function statusDataToAR(thing:StatusData) : AbstractRasterable {
 	// Note that along = down, across = L-R
 	// Status line
 	components.push({
-		component: new AbstractFlexRasterable("right",
+		component: makeFlex("right",
 			blackBackground,
 			[
 				oneCharPad,
@@ -498,13 +498,13 @@ function statusDataToAR(thing:StatusData) : AbstractRasterable {
 		});
 	}
 	components.push({
-		component: new AbstractFlexRasterable("down", blueBackground, messagesChildren),
+		component: makeFlex("down", blueBackground, messagesChildren),
 		flexGrowAlong: 0,
 		flexGrowAcross: 1,
 		flexShrinkAlong: 1,
 		flexShrinkAcross: 1,
 	})
-	return new AbstractFlexRasterable("down", blueBackground, components);
+	return makeFlex("down", blueBackground, components);
 }
 function statusDatasToAR(things:StatusData[]) : AbstractRasterable {
 	return makeSeparatedFlex("down", blackBackground, {
@@ -547,7 +547,7 @@ class StatusMockupAppInstance extends DemoAppInstance implements SizedRasterable
 	}
 	
 	_buildScene(_size:Vec2D<number>) : SizedRasterable {
-		return new AbstractComponentWrapper(new AbstractFlexRasterable("down", blueBackground, [
+		return new AbstractComponentWrapper(makeFlex("down", blueBackground, [
 			{
 				component: makeBorderedAbstractRasterable(protoBorder, 1, statusDatasToAR(this.#statusDatas)),
 				flexGrowAlong: 0,
