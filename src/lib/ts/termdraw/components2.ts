@@ -297,11 +297,11 @@ export class SizedCompoundRasterable implements BoundedRasterable {
 			const childRastClipped = assertRasterSize(childRast, fillSize);
 			rast = blitToRaster(rast, {x: child.bounds.x0 - bgx0, y: child.bounds.y0 - bgy0}, childRastClipped);
 			if( debugBounds ) {
-				const brText = regStr(this.#background.bounds) + " / " + regStr(adjustedInternalBounds);
+				const brText = "[" + regStr(adjustedInternalBounds) + "]";
 				rast = drawTextToRaster(rast, {x: child.bounds.x1 - brText.length - bgx0, y: child.bounds.y1 - 1 - bgy0}, brText, BRIGHT_GREEN_TEXT);
 			}
 		}
-		if( debugBounds ) rast = drawTextToRaster(rast, {x:0, y:0}, regStr(region), BRIGHT_CYAN_TEXT);
+		if( debugBounds ) rast = drawTextToRaster(rast, {x:0, y:0}, "[" + regStr(this.#background.bounds) + " / " + regStr(region) + "]", BRIGHT_CYAN_TEXT);
 		return rast;
 	}
 }
