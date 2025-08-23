@@ -544,6 +544,21 @@ ends up with a space at the top, cuurrently marked with a cyan background.
 
 This may be the same issue as the inappropriately two-line-tall border shown in the previous screenshot.
 
+### Gap explained
+
+Bill's status box originally packed to 4 lines tall.
+When `fillSize`d to three lines, the "Hi there"/"I'm Bill"
+got moved to a separate column, leaving the whole thing
+only two lines high.  The cyuan background showed through
+because it was asked to fill a 3-line-tall space with only 2 lines of content.
+
+'Fixed' this by taking whichever is shorter--the original 'to be filled' length,
+or the 'actually filled length of the child component.  To prevent overflowing
+the parent, too-long children are not given extra space.
+
+Figuring out how rigid-ish things will lay out is complicated by wrapping.
+There should probably be an option to disable it.
+
 ### To-do
 
 #### Demo improvements
