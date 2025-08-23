@@ -504,13 +504,17 @@ function statusDataToAR(thing:StatusData) : AbstractRasterable {
 			]),
 			flexGrowAlong: 0,
 			flexGrowAcross: 1,
-			flexShrinkAlong: 1,
+			flexShrinkAlong: 0,
 			flexShrinkAcross: 1
 		});
 	}
 	components.push({
+		// This causes trouble with the current flex layout system.
+		// Maybe it would help to tell this flexbox that it's okay
+		// to be small, don't bother wrapping, and to prioritize showing the bottom children;
+		// or maybe it shouldn't be a flex at all!
 		component: makeFlex("down", blueBackground, messagesChildren),
-		flexGrowAlong: 0,
+		flexGrowAlong: 1,
 		flexGrowAcross: 1,
 		flexShrinkAlong: 1,
 		flexShrinkAcross: 1,

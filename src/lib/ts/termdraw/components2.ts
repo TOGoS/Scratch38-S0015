@@ -297,7 +297,7 @@ export class SizedCompoundRasterable implements BoundedRasterable {
 			const childRastClipped = assertRasterSize(childRast, fillSize);
 			rast = blitToRaster(rast, {x: child.bounds.x0 - bgx0, y: child.bounds.y0 - bgy0}, childRastClipped);
 			if( debugBounds ) {
-				const brText = "[" + regStr(adjustedInternalBounds) + "]";
+				const brText = "[" + regStr(child.bounds) + " / " + regStr(child.component.bounds) + " / " + regStr(adjustedInternalBounds) + "]";
 				rast = drawTextToRaster(rast, {x: child.bounds.x1 - brText.length - bgx0, y: child.bounds.y1 - 1 - bgy0}, brText, BRIGHT_GREEN_TEXT);
 			}
 		}
@@ -527,14 +527,23 @@ class PackedFlexRasterable implements PackedRasterable {
 				const cLength = horiz ? cWidth : cHeight;
 				const remainingLength = boxLength - alongAfterSpace - along;
 				const cFlexAlong = leftoverLength > 0 ? child.flexGrowAlong : -child.flexShrinkAlong;
-				const filledLength = Math.max(0,
-					cFlexAlong > 0 && c == row.length - 1 ? remainingLength :
+				const fillLength = Math.max(0,
+					cFlexAlong > 0 && c == row.length - 1 ? remainingLength : 0,
 					Math.min(remainingLength, Math.round(cLength + leftoverLength * cFlexAlong / totalGrowish))
 				);
 				const cX = horiz ? along : across;
 				const cY = horiz ? across : along;
-				const cFilledWidth  = horiz ? filledLength : rowDepth;
-				const cFilledHeight = horiz ? rowDepth : filledLength;
+				const cFillWidth  = horiz ? fillLength : rowDepth;
+				const cFillHeight = horiz ? rowDepth : fillLength;
+				
+				const cExpanded = child.component.fillSize({x: cFillWidth, y: cFillHeight});
+				const cExpandedSize = boundsToSize(cExpanded.bounds);
+				
+				// Sometimes things *shrink* when 'expanded';
+				// if that happens we'll shrink its bounding box			
+				const cFilledWidth  = Math.min(cFillWidth , cExpandedSize.x);
+				const cFilledHeight = Math.min(cFillHeight, cExpandedSize.y);
+				const cFilledLength = horiz ? cFilledWidth : cFilledHeight;
 				
 				sizedChildren.push({
 					bounds: {
@@ -542,9 +551,9 @@ class PackedFlexRasterable implements PackedRasterable {
 						x1: cX + cFilledWidth,
 						y1: cY + cFilledHeight,
 					},
-					component: child.component.fillSize({x: cFilledWidth, y: cFilledHeight})
+					component: cExpanded
 				});
-				along += filledLength;
+				along += cFilledLength;
 			}
 			along += alongAfterSpace;
 			
@@ -639,14 +648,14 @@ export function makeSeparatedFlex(along:FlexDirection, background:RegionFillingR
 	return makeFlex(along, background, [...addSep(separator, children)]);
 }
 
-export function makeSolidGenerator(char:string, style:Style) : AbstractRasterable&PackedRasterable&SizeFillingRasterableGenerator&RegionFillingRasterableGenerator&RegionRasterable {
+export function makeSolidGenerator(char:string, style:Style, packedBounds=ZERO_BOUNDS) : AbstractRasterable&PackedRasterable&SizeFillingRasterableGenerator&RegionFillingRasterableGenerator&RegionRasterable {
 	const rasterForRegion = (region:AABB2D<number>) => {
 		return createUniformRaster(boundsToSize(region), char, style);
 	};
 	
 	// Lots of opportunities for memoization, here
 	return {
-		bounds: ZERO_BOUNDS,
+		bounds: packedBounds,
 		pack() { return this; },
 		fillSize(size:Vec2D<number>) {
 			return {
