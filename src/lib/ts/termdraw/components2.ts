@@ -511,7 +511,7 @@ class PackedFlexRasterable implements PackedRasterable {
 			const rowFlexAcross = leftoverDepth > 0 ? rowInfo.flexGrowAcross : -rowInfo.flexShrinkAcross;
 			const rowDepth = Math.max(0,
 				rowFlexAcross > 0 && r == rows.length - 1 ? remainingDepth : 0,
-				Math.round(rowInfo.maxDepth + leftoverDepth * rowFlexAcross / totalGrowAcrossish),
+				Math.floor(rowInfo.maxDepth + leftoverDepth * rowFlexAcross / totalGrowAcrossish),
 			)
 			
 			const leftoverLength = boxLength - rowInfo.totalLength;
@@ -526,7 +526,7 @@ class PackedFlexRasterable implements PackedRasterable {
 				const cHeight = cBounds.y1 - cBounds.y0;
 				const cLength = horiz ? cWidth : cHeight;
 				const remainingLength = boxLength - alongAfterSpace - along;
-				const cFlexAlong = leftoverLength > 0 ? child.flexGrowAlong : child.flexShrinkAlong;
+				const cFlexAlong = leftoverLength > 0 ? child.flexGrowAlong : -child.flexShrinkAlong;
 				const filledLength = Math.max(0,
 					cFlexAlong > 0 && c == row.length - 1 ? remainingLength :
 					Math.min(remainingLength, Math.round(cLength + leftoverLength * cFlexAlong / totalGrowish))
