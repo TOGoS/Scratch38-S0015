@@ -577,7 +577,7 @@ Not so good; nested flex container fails to wrap:
 
 `deno run src\demo\ts\tuidemo3.ts --output-mode=lines --screen-size=40,12 boxes --wrap-with-flex-row --quit`
 
-![Screenshot showing boxes app in three different border modes, where the flex-inside-flex on fails to wrap properly](http://picture-files.nuke24.net/uri-res/raw/urn:bitprint:ZUPJDXPXXYMSKZUXGGFCQPINYFJEEU45.MTPOVGZQ4UFE3JU2X4JLW4PE4VRGNLSDXGVIVHY/20250827-FlexFail.png)
+![Screenshot showing boxes app in three different border modes, where the flex-inside-flex on fails to wrap properly](http://picture-files.nuke24.net/uri-res/raw/urn:bitprint:ZUPJDXPXXYMSKZUXGGFCQPINYFJEEU45.MTPOVGZQ4UFE3JU2X4JLW4PE4VRGNLSDXGVIVHY/20250827T15-FlexFail.png)
 
 I think it might help if `pack` took a parameter indicating the shape of the space available,
 so that flex containers can wrap if needed, making their packed form will be more representative
@@ -592,7 +592,7 @@ I refactored it a little bit to use flex spacing around text
 instead of padding components, which resulted in slightly different,
 (but hopefully caused by the same underlying problem) funkiness:
 
-![Issues with status-demo layout](http://picture-files.nuke24.net/uri-res/raw/urn:bitprint:74P6R3XRXUFWNKDPMOUOFBFCJOUXW7TW.HQZBWCS3ABXSDN7YDWD2J45ZQU4Z4EPPELXYHTY/20250827-MinorIssues.png)
+![Issues with status-demo layout](http://picture-files.nuke24.net/uri-res/raw/urn:bitprint:74P6R3XRXUFWNKDPMOUOFBFCJOUXW7TW.HQZBWCS3ABXSDN7YDWD2J45ZQU4Z4EPPELXYHTY/20250827T16-MinorIssues.png)
 
 1. Why is there a gap after the status?
 2. Why does it wrap when screen height = 9?  There's clearly an empty space at the top.
@@ -601,7 +601,7 @@ I'm guessing it has to do with spacing, because that's a difference between `sta
 Also because adding `alongBetweenSpace: 1` to the boxes when height = 5 gives the wrong result
 (third box gets cammed to one line tall when it should have had two):
 
-![Hmm, alongBetweenSpace misbehavior](http://picture-files.nuke24.net/uri-res/raw/urn:bitprint:UH2C4QELFSNB4GN2X4ZOCJ3ADPHO3HPW.VU6B62NH255D3LZNSODAVP7FYE4TFJTTG5C2FSA/20250827-AlongSpaceHmm.png)
+![Hmm, alongBetweenSpace misbehavior](http://picture-files.nuke24.net/uri-res/raw/urn:bitprint:UH2C4QELFSNB4GN2X4ZOCJ3ADPHO3HPW.VU6B62NH255D3LZNSODAVP7FYE4TFJTTG5C2FSA/20250827T17-AlongSpaceHmm.png)
 
 ### To-do
 
