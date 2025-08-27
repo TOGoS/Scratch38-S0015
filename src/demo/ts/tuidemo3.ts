@@ -310,7 +310,7 @@ function mkTextRasterable(spans:{text:string, style:Style}[], background=blackBa
 			}
 		}),
 		{
-			// This bit is necessary before there's not yet any way
+			// This bit is necessary because there's not yet any way
 			// to tell a component to align itself right or left
 			// (default is to center everything)
 			// the padding ensures that it fills the entire space,
@@ -325,10 +325,6 @@ function mkTextRasterable(spans:{text:string, style:Style}[], background=blackBa
 		alongBeforeSpace: 1,
 		alongAfterSpace: 1,
 	}); // Maybe add a padding one at the end
-}
-
-function simpleBordered(char:string, style:Style, interior:AbstractRasterable) : AbstractRasterable {
-	return makeBorderedAbstractRasterable(makeSolidGenerator(char, style), 1, interior)
 }
 
 class SizedLineBorderRasterable implements BoundedRasterable {
@@ -475,21 +471,20 @@ interface StatusData {
 }
 
 function statusDataToAR(thing:StatusData) : AbstractRasterable {
-	const components : FlexChild<AbstractRasterable>[] = [];
+	const statusSections : FlexChild<AbstractRasterable>[] = [];
 	// Note that along = down, across = L-R
 	// Status line
-	components.push({
+	statusSections.push({
 		component: makeFlex("right",
 			blackBackground,
 			[
-				oneCharPad,
 				{
 					component: mkSimpleTextRasterable([{text: thing.name, style: ansi.BRIGHT_WHITE_TEXT}]),
 					flexGrowAlong: 0, flexGrowAcross: 0, flexShrinkAlong: 0, flexShrinkAcross: 0
 				},
 				{
 					component: flexyOneSpace,
-					flexGrowAlong: 1, flexGrowAcross: 0, flexShrinkAlong: 0, flexShrinkAcross: 0
+					flexGrowAlong: 1, flexGrowAcross: 0, flexShrinkAlong: 1, flexShrinkAcross: 0
 				},
 				{
 					component: mkSimpleTextRasterable([{
@@ -501,8 +496,11 @@ function statusDataToAR(thing:StatusData) : AbstractRasterable {
 					}]),
 					flexGrowAlong: 0, flexGrowAcross: 0, flexShrinkAlong: 0, flexShrinkAcross: 0
 				},
-				oneCharPad,
-			]
+			],
+			{
+				alongBeforeSpace: 1,
+				alongAfterSpace: 1,
+			}
 		),
 		flexGrowAlong: 0,
 		flexGrowAcross: 1,
@@ -510,7 +508,7 @@ function statusDataToAR(thing:StatusData) : AbstractRasterable {
 		flexShrinkAcross: 1,
 	});
 	// Last seen line
-	components.push({
+	statusSections.push({
 		component: mkTextRasterable([
 			{
 				text: "last seen: " + (thing.lastSeen == undefined ? "never" : thing.lastSeen.toISOString()),
@@ -518,7 +516,7 @@ function statusDataToAR(thing:StatusData) : AbstractRasterable {
 			}
 		]),
 		flexGrowAlong: 0,
-		flexGrowAcross: 1,
+		flexGrowAcross: 0,
 		flexShrinkAlong: 1,
 		flexShrinkAcross: 1,
 	});
@@ -538,18 +536,18 @@ function statusDataToAR(thing:StatusData) : AbstractRasterable {
 			flexShrinkAcross: 1
 		});
 	}
-	components.push({
+	statusSections.push({
 		// This causes trouble with the current flex layout system.
 		// Maybe it would help to tell this flexbox that it's okay
 		// to be small, don't bother wrapping, and to prioritize showing the bottom children;
 		// or maybe it shouldn't be a flex at all!
-		component: makeFlex("down", blueBackground, messagesChildren),
+		component: makeFlex("down", cyanBackground, messagesChildren),
 		flexGrowAlong: 1,
 		flexGrowAcross: 1,
 		flexShrinkAlong: 1,
 		flexShrinkAcross: 1,
 	})
-	return makeFlex("down", cyanBackground, components);
+	return makeFlex("down", cyanBackground, statusSections);
 }
 function statusDatasToAR(things:StatusData[]) : AbstractRasterable {
 	return makeFlex("down", toBeLined, things.map(sd => ({
