@@ -579,6 +579,10 @@ Not so good; nested flex container fails to wrap:
 
 ![Screenshot showing boxes app in three different border modes, where the flex-inside-flex on fails to wrap properly](http://picture-files.nuke24.net/uri-res/raw/urn:bitprint:ZUPJDXPXXYMSKZUXGGFCQPINYFJEEU45.MTPOVGZQ4UFE3JU2X4JLW4PE4VRGNLSDXGVIVHY/20250827-FlexFail.png)
 
+I think it might help if `pack` took a parameter indicating the shape of the space available,
+so that flex containers can wrap if needed, making their packed form will be more representative
+of the space they need.
+
 ### To-do
 
 #### Demo improvements
