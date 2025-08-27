@@ -34,10 +34,6 @@ import { blitToRaster, createUniformRaster, drawTextToRaster } from "./textraste
 /**
  * Component without any notion of size;
  */
-// Hmm: I don't really want to force all implementations to implement SizedRasterGenerator;
-// it is trivial enough to turn one of this into one of that.
-// Maybe I'll replace that with a generic wrapper thing,
-// which can also take care of memoization.
 export interface AbstractRasterable {
 	pack() : PackedRasterable;
 }
