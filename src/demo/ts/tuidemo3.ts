@@ -388,16 +388,27 @@ const redBackground = makeSolidGenerator(" ", ansi.RED_BACKGROUND);
 /** toBeLined = placeholder until I figure out how to draw lines */
 const toBeLined = makeSolidGenerator("▀", ansi.BRIGHT_CYAN_TEXT+ansi.CYAN_BACKGROUND);
 
+interface BoxesAppOptions {
+	wrapperBorderEnabled: boolean;
+	wrapperFlexEnabled: boolean;
+	/** Quit after drawing the scene once? */
+	autoQuit: boolean;
+}
+
 class BoxesAppInstance extends DemoAppInstance implements SizedRasterable {
-	constructor(ctx:PossiblyTUIAppContext) {
+	#options : BoxesAppOptions;
+	constructor(ctx:PossiblyTUIAppContext, options:BoxesAppOptions) {
 		super(ctx);
+		
+		this.#options = options;
 		
 		ctx.setScene(this);
 	}
 	
 	_buildScene(size:Vec2D<number>) : SizedRasterable {
-		const border = makeSolidGenerator(" ", ansi.RED_BACKGROUND);
-		const treeBg = blueBackground;
+		// Background used for all the elements,
+		// though it won't show through for most of them:
+		const defaultBg = blueBackground;
 		
 		const welcomeSpan = mkTextRasterable([
 			{text:"Welcome to boxes!", style:ansi.FAINT+ansi.YELLOW_TEXT},
@@ -406,30 +417,49 @@ class BoxesAppInstance extends DemoAppInstance implements SizedRasterable {
 			{text:"Screen size: ", style:ansi.WHITE_TEXT},
 			{text:size.x +" x " +size.y, style:ansi.BRIGHT_WHITE_TEXT},
 		]);
-		const contProps = {
+		const rigidFlexOpts = {
 			flexGrowAlong: 0,
 			flexGrowAcross: 0,
 			flexShrinkAlong: 0,
 			flexShrinkAcross: 0,
 		};
-		const padProps = {
+		const gaseousFlexOpts = {
+			flexGrowAlong: 100,
+			flexGrowAcross: 100,
+			flexShrinkAlong: 100,
+			flexShrinkAcross: 100,
+		};
+		const genericFlexOpts = {
 			flexGrowAlong: 1,
 			flexGrowAcross: 1,
-			flexShrinkAlong: 1,
-			flexShrinkAcross: 1,
+			flexShrinkAlong: 0,
+			flexShrinkAcross: 0,
 		};
-		const texto = makeFlex("down", treeBg, [
-			{component: welcomeSpan, ...contProps},
-			{component: sizeSpan   , ...contProps},
+		const texto = makeFlex("down", defaultBg, [
+			{component: welcomeSpan, ...rigidFlexOpts},
+			{component: sizeSpan   , ...rigidFlexOpts},
 		]);
-		const tree = lineBordered(BDC_PROP_VALUES.DOUBLE, ansi.BOLD+ansi.BRIGHT_RED_TEXT, makeFlex("down", treeBg, [
-			{component: lineBordered(BDC_PROP_VALUES.LIGHT, ansi.WHITE_TEXT, texto), ...contProps},
+		const boxes = makeFlex("down", defaultBg, [
+			{component: lineBordered(BDC_PROP_VALUES.LIGHT, ansi.WHITE_TEXT, texto), ...rigidFlexOpts},
 			// TODO: Instead of solid, make boxes
-			{component: lineBordered(BDC_PROP_VALUES.LIGHT, ansi.BOLD+ansi.RED_TEXT  , makeSolidGenerator("2", ansi.RED_TEXT  )), ...padProps},
-			{component: lineBordered(BDC_PROP_VALUES.LIGHT, ansi.BOLD+ansi.GREEN_TEXT, makeSolidGenerator("3", ansi.GREEN_TEXT)), ...padProps},
-			{component: lineBordered(BDC_PROP_VALUES.LIGHT, ansi.BOLD+ansi.BLUE_TEXT , makeSolidGenerator("4", ansi.BLUE_TEXT )), ...padProps},
-		]));
-		return new AbstractComponentWrapper(tree);
+			{component: lineBordered(BDC_PROP_VALUES.LIGHT, ansi.BOLD+ansi.RED_TEXT  , makeSolidGenerator("2", ansi.RED_TEXT  )), ...genericFlexOpts},
+			{component: lineBordered(BDC_PROP_VALUES.LIGHT, ansi.BOLD+ansi.GREEN_TEXT, makeSolidGenerator("3", ansi.GREEN_TEXT)), ...genericFlexOpts},
+			{component: lineBordered(BDC_PROP_VALUES.LIGHT, ansi.BOLD+ansi.BLUE_TEXT , makeSolidGenerator("4", ansi.BLUE_TEXT )), ...genericFlexOpts},
+		]);
+		let root : AbstractRasterable = boxes;
+		if( this.#options.wrapperFlexEnabled ) {
+			root = makeFlex("right", defaultBg, [
+				{component: root, ...genericFlexOpts}
+			]);
+		}
+		if( this.#options.wrapperBorderEnabled ) {
+			root = lineBordered(BDC_PROP_VALUES.DOUBLE, ansi.BOLD+ansi.BRIGHT_RED_TEXT, boxes);
+		}
+		
+		// Can this work here?
+		if( this.#options.autoQuit ) this._requestCleanExit(0);
+		
+		return new AbstractComponentWrapper(root);
 	}
 	
 	rasterForSize(size: Vec2D<number>): TextRaster2 {
@@ -775,9 +805,26 @@ function parseMain(args:string[]) : Spawner<ProcLikeSpawnContext,Waitable<number
 			outputMode: topArgs.outputMode ?? "screen"
 		});
 	} else if( topArgs.appName == "boxes" ) {
+		const boxesAppOpts : BoxesAppOptions = {
+			wrapperBorderEnabled: false,
+			wrapperFlexEnabled: false,
+			autoQuit: false,
+		}
+		for( const arg of topArgs.appArgs ) {
+			// Hmm: Could allow these in arbitrary order.
+			if( arg == "--wrap-with-flex-row" ) {
+				boxesAppOpts.wrapperFlexEnabled = true;
+			} else if( arg == "--wrap-with-border" ) {
+				boxesAppOpts.wrapperBorderEnabled = true;
+			} else if( arg == "--quit" ) {
+				boxesAppOpts.autoQuit = true;
+			} else {
+				throw new Error(`Unrecognized argument to 'boxes': '${arg}'`);
+			}
+		}
 		return tuiAppToProcLike({
 			inputMode: topArgs.inputMode ?? "none",
-			spawn: (ctx:PossiblyTUIAppContext) => new BoxesAppInstance(ctx),
+			spawn: (ctx:PossiblyTUIAppContext) => new BoxesAppInstance(ctx, boxesAppOpts),
 		}, {
 			...runOpts,
 			outputMode: topArgs.outputMode ?? "screen"

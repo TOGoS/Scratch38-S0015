@@ -559,22 +559,30 @@ the parent, too-long children are not given extra space.
 Figuring out how rigid-ish things will lay out is complicated by wrapping.
 There should probably be an option to disable it.
 
+## 2025-08-27
+
+### New options to boxes app
+
+To show that nested flex containers don't wrap properly.
+
+Looks good:
+
+`deno run src\demo\ts\tuidemo3.ts --output-mode=lines --screen-size=40,12 boxes --quit`
+
+Looks good:
+
+`deno run src\demo\ts\tuidemo3.ts --output-mode=lines --screen-size=40,12 boxes --wrap-with-border --quit`
+
+Not so good; nested flex container fails to wrap:
+
+`deno run src\demo\ts\tuidemo3.ts --output-mode=lines --screen-size=40,12 boxes --wrap-with-flex-row --quit`
+
+![Screenshot showing boxes app in three different border modes, where the flex-inside-flex on fails to wrap properly](http://picture-files.nuke24.net/uri-res/raw/urn:bitprint:ZUPJDXPXXYMSKZUXGGFCQPINYFJEEU45.MTPOVGZQ4UFE3JU2X4JLW4PE4VRGNLSDXGVIVHY/20250827-FlexFail.png)
+
 ### To-do
 
 #### Demo improvements
 
-- [X] Actually draw borders!
-- [\] Padding so that status boxes aren't stretched
-  - Implemented by respecting `flexGrow: 0`
-- [X] Why are boxes and status-mockup content not centered?
-  - What I expect to happen is that `fillRegion` returns a BoundedRasterable
-    of the given size, and then the outer (stretched to fill the screen) component
-    calculates a region centered on that of the stretched size,
-    asks the inner component for a raster of that region,
-    and gets a raster where the content is roughly centered.
-    But content always ends up in the top-left.
-- [X] Refactor screen size to be a reactive variable thing
-- [X] `--console-size=${x},${y}` to force a certain screen size
 - [ ] When many messages, try to show the last ones
 - [ ] flexShrink: can it be used to prioritize
   what gets removed entirely, not just how much,
@@ -588,8 +596,6 @@ There should probably be an option to disable it.
 - [/] Replace "rows" and "columns" flex directions with alongDirection and acrossDirection,
   which can be "up"/"down"/"left"/"right" (but along and across must be orthogonal)
   - Renamed, but left/up not yet options
-- [X] Allow spacing between rows and columns
-- [X] Fix [that gap](#2025-08-22)
 
 #### Box drawing
 
