@@ -373,6 +373,55 @@ function massageFlexOptions(opts:FlexOptions) : FlexOptionsMassaged {
 	}
 }
 
+function flexChildrenToRows(children:FlexChild<PackedRasterable>[], size:Vec2D<number>, flexOpts:FlexOptionsMassaged) : FlexChild<PackedRasterable>[][] {
+	const {
+		alongDirection,
+		// If there needs to be overflow, it goes in the 'across' direction;
+		// that's how these flex containers are supposed to work.
+		// Therefore when organizing into rows, we can ignore 'across' distances altogether.
+		// acrossAfterSpace,
+		// acrossBeforeSpace,
+		// acrossBetweenSpace,
+		alongAfterSpace,
+		alongBeforeSpace,
+		alongBetweenSpace,
+	} = flexOpts;
+	
+	const horiz = alongDirection == "right";
+	
+	const rows : FlexChild<PackedRasterable>[][] = [];
+	const boxLength = horiz ? size.x : size.y;
+	const innerLength = boxLength - alongBeforeSpace - alongAfterSpace;
+	
+	// Wrap into rows
+	if( children.length > 0 ) {
+		let currentRowLength = alongBeforeSpace;
+		let currentRow : FlexChild<PackedRasterable>[] = [];
+		rows.push(currentRow);
+		
+		// Lay packed children out in rows or columns (depending on direction),
+		// wrapping when the total width or height overflows the bounds specified,
+		// always cramming at least one into each row.
+		
+		// length / depth = main-axis / cross-axis (in flexbox terms)
+		for( const child of children ) {
+			const cBounds = child.component.bounds;
+			const cLength = horiz ? cBounds.x1 - cBounds.x0 : cBounds.y1 - cBounds.y0;
+			// const cDepth  = horiz ? cHeight : cWidth;
+			const currentRowTentativeLength = currentRowLength + (currentRow.length > 0 ? alongBetweenSpace : 0 ) + cLength;
+			if( currentRow.length == 0 || currentRowTentativeLength <= innerLength ) {
+				currentRow.push(child);
+				currentRowLength = currentRowTentativeLength;
+			} else {
+				rows.push(currentRow = [child]);
+				currentRowLength = cLength;
+			}
+		}
+	}
+	
+	return rows;
+}
+
 /*
  * Hmm: Maybe the FlexRasterable itself should add borders
  * between rows and columns, since the constructor can't
@@ -380,13 +429,13 @@ function massageFlexOptions(opts:FlexOptions) : FlexOptionsMassaged {
  */
 class PackedFlexRasterable implements PackedRasterable {
 	readonly bounds : AABB2D<number>;
-	readonly #children : FlexChild<PackedRasterable>[];
+	readonly #childRows : FlexChild<PackedRasterable>[][];
 	readonly #background : RegionFillingRasterableGenerator;
 	readonly #options : FlexOptionsMassaged;
-	constructor(bounds:AABB2D<number>, background:RegionFillingRasterableGenerator, children:FlexChild<PackedRasterable>[], options:FlexOptionsMassaged) {
+	constructor(bounds:AABB2D<number>, background:RegionFillingRasterableGenerator, childRows:FlexChild<PackedRasterable>[][], options:FlexOptionsMassaged) {
 		this.bounds = bounds;
 		this.#background = background;
-		this.#children = children;
+		this.#childRows = childRows;
 		this.#options = options;
 	}
 	
@@ -405,42 +454,11 @@ class PackedFlexRasterable implements PackedRasterable {
 		
 		const horiz = alongDirection == "right";
 		
-		const rows : FlexChild<PackedRasterable>[][] = [];
+		const rows = this.#childRows;
 		const boxWidth  = size.x;
 		const boxHeight = size.y;
 		const boxLength = horiz ? boxWidth : boxHeight;
 		const boxDepth  = horiz ? boxHeight : boxWidth;
-		
-		// Wrap into rows
-		if( this.#children.length > 0 ) {
-			let currentRowLength = alongBeforeSpace;
-			let currentRow : FlexChild<PackedRasterable>[] = [];
-			rows.push(currentRow);
-			
-			// Lay packed children out in rows or columns (depending on direction),
-			// wrapping when the total width or height overflows the bounds specified,
-			// always cramming at least one into each row.
-			
-			// length / depth = main-axis / cross-axis (in flexbox terms)
-			for( const child of this.#children ) {
-				const cBounds = child.component.bounds;
-				const cWidth  = cBounds.x1 - cBounds.x0;
-				const cHeight = cBounds.y1 - cBounds.y0;
-				const cLength = horiz ? cWidth : cHeight;
-				// const cDepth  = horiz ? cHeight : cWidth;
-				const currentRowTentativeLength = currentRowLength + (currentRow.length > 0 ? alongBetweenSpace : 0 ) + cLength;
-				if( currentRow.length == 0 || currentRowTentativeLength <= boxLength - alongAfterSpace ) {
-					currentRow.push(child);
-					currentRowLength = currentRowTentativeLength;
-				} else {
-					rows.push(currentRow = [child]);
-					currentRowLength = alongBeforeSpace + cLength;
-				}
-			}
-		}
-		
-		// Hmm: Maybe the thing to do is to turn each row into
-		// a component, then pack/expand the rows.
 		
 		const sizedChildren : CompoundChild<BoundedRasterable>[] = [];
 		const rowInfos = [];
@@ -616,24 +634,38 @@ class AbstractFlexRasterable implements AbstractRasterable {
 			flexShrinkAlong: c.flexShrinkAlong,
 			flexShrinkAcross: c.flexShrinkAcross,
 		}));
-		const totalAlongSpace  = alongBeforeSpace + Math.max(0, packedChildren.length-1) * alongBetweenSpace + alongAfterSpace;
-		const totalAcrossSpace = acrossBeforeSpace + acrossAfterSpace; // One row => no between
-		let totalWidth  = horiz ? totalAlongSpace : totalAcrossSpace;
-		let totalHeight = horiz ? totalAcrossSpace : totalAlongSpace;
-		if( horiz ) {
-			for( const child of packedChildren ) {
+		let maxContentLength = 0;
+		let totalContentDepth  = acrossBeforeSpace;
+		
+		const rows = flexChildrenToRows(packedChildren, maxSize, this.#options);
+		for( let r = 0; r < rows.length; ++r ) {
+			const row = rows[r];
+			let rowLength = 0;
+			let maxChildDepth = 0;
+			for( let c=0; c<row.length; ++c ) {
+				const child = row[c];
 				const bounds = child.component.bounds;
-				totalWidth  += bounds.x1 - bounds.x0;
-				totalHeight  = Math.max(totalHeight, bounds.y1 - bounds.y0 + totalAcrossSpace);
+				const childLength = horiz ? bounds.x1 - bounds.x0 : bounds.y1 - bounds.y0;
+				const childDepth  = horiz ? bounds.y1 - bounds.y0 : bounds.x1 - bounds.x0;
+				maxChildDepth   = Math.max(maxChildDepth, childDepth);
+				rowLength      += (c == 0 ? 0 : alongBetweenSpace) + childLength;
 			}
-		} else {
-			for( const child of packedChildren ) {
-				const bounds = child.component.bounds;
-				totalWidth   = Math.max(totalWidth, bounds.x1 - bounds.x0 + totalAcrossSpace);
-				totalHeight += bounds.y1 - bounds.y0;
-			}
+			maxContentLength = Math.max(maxContentLength, rowLength);
+			totalContentDepth += (r == 0 ? 0 : acrossBetweenSpace) + maxChildDepth;
 		}
-		return new PackedFlexRasterable({x0:0, y0:0, x1:totalWidth, y1:totalHeight}, this.#background, packedChildren, this.#options);
+		
+		totalContentDepth += acrossAfterSpace;
+		
+		const totalLength = alongBeforeSpace + maxContentLength + alongAfterSpace;
+		const totalDepth  = acrossBeforeSpace + totalContentDepth + acrossAfterSpace;
+		const totalWidth  = horiz ? totalLength : totalDepth;
+		const totalHeight = horiz ? totalDepth : totalLength;
+		
+		// Hmm: Maybe the thing to do is to turn each row into
+		// a component, then pack/expand the rows,
+		// so that PackedFlexRasterable only has to worry about one direction.
+		
+		return new PackedFlexRasterable({x0:0, y0:0, x1:totalWidth, y1:totalHeight}, this.#background, rows, this.#options);
 	}
 }
 
