@@ -585,7 +585,11 @@ of the space they need.
 
 ### That worked great!  Minor issues remain.
 
-Boxes works great.  I can change the screen size and things flow around as they should.
+Boxes demo now lays out properly with `--wrap-with-flex-row`,
+giving the same result as when not wrapped at all.
+I can change the screen size and things flow around as they should.
+Which is fun to after editing the refresh interval to, like, 100ms
+(`Deno.addSignalListener("SIGWINCH", refreshScreenSize)` doesn't work on Windows).
 
 Status mockup has some funkiness though.
 I refactored it a little bit to use flex spacing around text
