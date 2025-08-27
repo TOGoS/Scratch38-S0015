@@ -585,10 +585,11 @@ There should probably be an option to disable it.
 
 #### Flex
 
-- [ ] Replace "rows" and "columns" flex directions with alongDirection and acrossDirection,
+- [/] Replace "rows" and "columns" flex directions with alongDirection and acrossDirection,
   which can be "up"/"down"/"left"/"right" (but along and across must be orthogonal)
-- [ ] Allow spacing between rows and columns
-- [ ] Fix [that gap](#2025-08-22)
+  - Renamed, but left/up not yet options
+- [X] Allow spacing between rows and columns
+- [X] Fix [that gap](#2025-08-22)
 
 #### Box drawing
 
