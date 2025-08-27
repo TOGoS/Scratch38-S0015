@@ -479,7 +479,7 @@ class PackedFlexRasterable implements PackedRasterable {
 			let rowMinGrowAcross = 1000;
 			
 			for( let c=0; c<row.length; ++c ) {
-				if( c > 0 ) rowTotalLength += alongBeforeSpace;
+				if( c > 0 ) rowTotalLength += alongBetweenSpace;
 				
 				const child   = row[c];
 				const cBounds = child.component.bounds;

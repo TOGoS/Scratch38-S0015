@@ -602,10 +602,30 @@ instead of padding components, which resulted in slightly different,
 2. Why does it wrap when screen height = 9?  There's clearly an empty space at the top.
 
 I'm guessing it has to do with spacing, because that's a difference between `status-mockup` and `boxes`.
-Also because adding `alongBetweenSpace: 1` to the boxes when height = 5 gives the wrong result
+
+Also because:
+
+3. Adding `alongBetweenSpace: 1` to the boxes when height = 5 gives the wrong result
 (third box gets cammed to one line tall when it should have had two):
 
 ![Hmm, alongBetweenSpace misbehavior](http://picture-files.nuke24.net/uri-res/raw/urn:bitprint:UH2C4QELFSNB4GN2X4ZOCJ3ADPHO3HPW.VU6B62NH255D3LZNSODAVP7FYE4TFJTTG5C2FSA/20250827T17-AlongSpaceHmm.png)
+
+### A fix
+
+Oops!  When calculating row lengths in `PackedFlexRasterable#PackedFlexRasterable`:
+
+```
+if( c > 0 ) rowTotalLength += alongBetweenSpace;
+```
+
+should have been:
+
+```
+if( c > 0 ) rowTotalLength += alongBeforeSpace;
+```
+
+That fixed the prolem #1 and #3, but not #2.
+
 
 ### To-do
 
