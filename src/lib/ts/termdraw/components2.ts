@@ -627,21 +627,8 @@ class AbstractFlexRasterable implements AbstractRasterable {
 	}
 }
 
-function* addSep<T>(sep:T, items:Iterable<T>) : Iterable<T> {
-	let first = true;
-	for( const item of items ) {
-		if( !first ) yield sep;
-		yield item;
-		first = false;
-	}
-}
-
 export function makeFlex(along:FlexDirection, background:RegionFillingRasterableGenerator, children:FlexChild<AbstractRasterable>[], options:Omit<FlexOptions, "alongDirection">={}) {
 	return new AbstractFlexRasterable(background, children, massageFlexOptions({alongDirection:along, ...options}));
-}
-
-export function makeSeparatedFlex(along:FlexDirection, background:RegionFillingRasterableGenerator, separator:FlexChild<AbstractRasterable>, children:Iterable<FlexChild<AbstractRasterable>>) {
-	return makeFlex(along, background, [...addSep(separator, children)]);
 }
 
 export function makeSolidGenerator(char:string, style:Style, packedBounds=ZERO_BOUNDS) : AbstractRasterable&PackedRasterable&SizeFillingRasterableGenerator&RegionFillingRasterableGenerator&RegionRasterable {

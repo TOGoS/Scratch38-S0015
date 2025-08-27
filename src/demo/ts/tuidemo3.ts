@@ -3,7 +3,7 @@ import * as ansi from '../../lib/ts/termdraw/ansi.ts';
 import { boundsToSize, sizeToBounds } from '../../lib/ts/termdraw/boundsutils.ts';
 import { BDC_PROP_VALUES, LineStyle } from '../../lib/ts/termdraw/boxcharprops.ts';
 import BoxDrawr from '../../lib/ts/termdraw/BoxDrawr.ts';
-import { AbstractComponentWrapper, AbstractRasterable, BoundedRasterable, FixedRasterable, FlexChild, makeBorderedAbstractRasterable, makeFlex, makeSeparatedFlex, makeSolidGenerator, PackedRasterable, PaddingRasterable, RegionFillingRasterableGenerator, SizedRasterable } from '../../lib/ts/termdraw/components2.ts';
+import { AbstractComponentWrapper, AbstractRasterable, BoundedRasterable, FixedRasterable, FlexChild, makeBorderedAbstractRasterable, makeFlex, makeSolidGenerator, PackedRasterable, PaddingRasterable, RegionFillingRasterableGenerator, SizedRasterable } from '../../lib/ts/termdraw/components2.ts';
 import TextRaster2, { Style } from '../../lib/ts/termdraw/TextRaster2.ts';
 import { createUniformRaster, drawTextToRaster, textToRaster } from '../../lib/ts/termdraw/textraster2utils.ts';
 import Vec2D from '../../lib/ts/termdraw/Vec2D.ts';
