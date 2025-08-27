@@ -13,8 +13,8 @@ import { blitToRaster, createUniformRaster, drawTextToRaster } from "./textraste
 // ( Abstract component tree )
 //  '-----------------------'
 //    \
-//     '-- pack --.
-//                v
+//     '-- pack(area) --.
+//                      v
 //  .-----------------------.
 // ( Packed component tree   )
 //  '-----------------------'
@@ -35,7 +35,7 @@ import { blitToRaster, createUniformRaster, drawTextToRaster } from "./textraste
  * Component without any notion of size;
  */
 export interface AbstractRasterable {
-	pack() : PackedRasterable;
+	pack(maxSize : Vec2D<number>) : PackedRasterable;
 }
 
 /**
@@ -133,7 +133,7 @@ export function rasterizePackedRasterableToSize(packrast:PackedRasterable, targe
 }
 
 export function rasterizeAbstractRasterableToSize(abstrast:AbstractRasterable, targetSize:Vec2D<number>) : TextRaster2 {
-	return rasterizePackedRasterableToSize(abstrast.pack(), targetSize);
+	return rasterizePackedRasterableToSize(abstrast.pack(targetSize), targetSize);
 }
 
 //// Utilioty functions
@@ -190,9 +190,13 @@ export class AbstractBorderRasterable implements AbstractRasterable {
 		this.#backgroundGenerator = backgroundGenerator;
 	}
 	
-	pack(): PackedRasterable {
-		const packedInner = this.#inner.pack();
+	pack(maxSize:Vec2D<number>): PackedRasterable {
 		const b = this.#borderWidth;
+		const maxInnerSize = {
+			x: maxSize.x - b*2,
+			y: maxSize.y - b*2,
+		}
+		const packedInner = this.#inner.pack(maxInnerSize);
 		const bounds = {
 			x0: packedInner.bounds.x0 - b,
 			y0: packedInner.bounds.y0 - b,
@@ -587,7 +591,7 @@ class AbstractFlexRasterable implements AbstractRasterable {
 		this.#background = background;
 		this.#options    = options   ;
 	}
-	pack(): PackedRasterable {
+	pack(maxSize:Vec2D<number>): PackedRasterable {
 		const {
 			alongDirection,
 			acrossAfterSpace,
@@ -598,14 +602,20 @@ class AbstractFlexRasterable implements AbstractRasterable {
 			alongBetweenSpace,
 		} = this.#options;
 		
+		const horiz = alongDirection == "right";
+		
+		const maxInnerSize = {
+			x: maxSize.x - (horiz ? (alongBeforeSpace + alongAfterSpace) : (acrossBeforeSpace + acrossAfterSpace)),
+			y: maxSize.y - (horiz ? (acrossBeforeSpace + acrossAfterSpace) : (alongBeforeSpace + alongAfterSpace)),
+		}
+		
 		const packedChildren = this.#children.map(c => ({
-			component: c.component.pack(),
+			component: c.component.pack(maxInnerSize), // Uhh, for starters just tell them our area; should work when one child anyway!
 			flexGrowAlong: c.flexGrowAlong,
 			flexGrowAcross: c.flexGrowAcross,
 			flexShrinkAlong: c.flexShrinkAlong,
 			flexShrinkAcross: c.flexShrinkAcross,
 		}));
-		const horiz = alongDirection == "right";
 		const totalAlongSpace  = alongBeforeSpace + Math.max(0, packedChildren.length-1) * alongBetweenSpace + alongAfterSpace;
 		const totalAcrossSpace = acrossBeforeSpace + acrossAfterSpace; // One row => no between
 		let totalWidth  = horiz ? totalAlongSpace : totalAcrossSpace;
@@ -665,12 +675,12 @@ export class AbstractComponentWrapper implements AbstractRasterable, SizedRaster
 	constructor(wrapped:AbstractRasterable) {
 		this.#wrapped = wrapped;
 	}
-	pack(): PackedRasterable {
+	pack(maxSize:Vec2D<number>): PackedRasterable {
 		// TODO: Memoize shit here
-		return this.#wrapped.pack();
+		return this.#wrapped.pack(maxSize);
 	}
 	rasterForSize(size: Vec2D<number>): TextRaster2 {
-		const expanded = this.pack().fillSize(size);
+		const expanded = this.pack(size).fillSize(size);
 		// TODO: Memoize this shit, too
 		return expanded.rasterForRegion(centeredExpandedBounds(expanded.bounds, size));
 	}

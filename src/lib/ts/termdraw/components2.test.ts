@@ -11,7 +11,7 @@ Deno.test("FixedRasterable is fixed", () => {
 	const s1 = ansi.RED_TEXT;
 	
 	const abstract : AbstractRasterable = new FixedRasterable(createUniformRaster({x:3,y:2},c1,s1));
-	const packed = abstract.pack();
+	const packed = abstract.pack({x:80, y:20});
 	assertEquals(packed.bounds, {x0:0, y0:0, x1:3, y1:2});
 	
 	const inflated = packed.fillSize({x: 6, y: 5});
@@ -69,7 +69,7 @@ Deno.test("flex grow/shrink flexible item", () => {
 			flexShrinkAcross: 1,
 		},
 	]);
-	const packedFlex = abstractFlex.pack();
+	const packedFlex = abstractFlex.pack({x:80, y:40});
 	const packedSize = boundsToSize(packedFlex.bounds);
 	assertEquals(packedSize, {x:10, y:2});
 	
@@ -111,7 +111,7 @@ Deno.test("flex grow/shrink less flexible item", () => {
 			flexShrinkAcross: 1,
 		},
 	]);
-	const packedFlex = abstractFlex.pack();
+	const packedFlex = abstractFlex.pack({x:100, y:100});
 	const packedSize = boundsToSize(packedFlex.bounds);
 	assertEquals(packedSize, {x:10, y:4});
 	
