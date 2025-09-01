@@ -9,7 +9,7 @@ import { createUniformRaster, drawTextToRaster, textToRaster } from '../../lib/t
 import Vec2D from '../../lib/ts/termdraw/Vec2D.ts';
 import { vec2dsAreEqual } from '../../lib/ts/termdraw/vecutils.ts';
 import KeyEvent from '../../lib/ts/terminput/KeyEvent.ts';
-import { AbstractAppInstance, PossiblyTUIAppContext, PossiblyTUIAppSpawner, runTuiApp, TUIAppRunOpts, Waitable } from '../../lib/ts/tuiappframework3.ts';
+import { AbstractAppInstance, DenoStdinLike, PossiblyTUIAppContext, PossiblyTUIAppSpawner, runTuiApp, TUIAppRunOpts, Waitable } from '../../lib/ts/tuiappframework3.ts';
 import WatchableVariable, { makeReadonlyWatchable } from '../../lib/ts/WatchableVariable.ts';
 
 //// Misc helper functions
@@ -667,7 +667,7 @@ function parseTopArgs(args:string[]) : TopArgs {
 }
 
 interface ProcLikeSpawnContext {
-	stdin  : typeof Deno.stdin;
+	stdin  : DenoStdinLike;
 	stdout : typeof Deno.stdout;
 	stderr : typeof Deno.stderr;
 }

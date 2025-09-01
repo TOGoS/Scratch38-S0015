@@ -82,13 +82,19 @@ export type PossiblyTUIAppSpawner<Context,Instance,InputEvent> = {
 
 export interface TUIAppRunOpts {
 	outputMode: "screen"|"lines",
+	// TODO: This should be part of ctx, not opts!
 	screenSizeVar : WatchableVariable<Vec2D<number>>,
+}
+
+export interface DenoStdinLike {
+	setRaw(raw:boolean) : void;
+	readable : ReadableStream<Uint8Array>;
 }
 
 export async function runTuiApp<Result>(
 	spawner: PossiblyTUIAppSpawner<PossiblyTUIAppContext, Waitable<Result>, KeyEvent>,
 	ctx:{
-		stdin  : typeof Deno.stdin,
+		stdin  : DenoStdinLike,
 		stdout : WritableStreamDefaultWriter
 	},
 	opts: TUIAppRunOpts
@@ -200,6 +206,7 @@ export async function runTuiApp<Result>(
 	// I have not figured out how to clean up
 	// when Ctrl+C is pressed while the process
 	// is reading from stdin.
+	// TODO: Put a function on ctx to avoid being tied to Deno
 	Deno.addSignalListener("SIGINT", cleanup);
 	
 	try {
