@@ -9,7 +9,7 @@ import { createUniformRaster, drawTextToRaster, textToRaster } from '../../lib/t
 import Vec2D from '../../lib/ts/termdraw/Vec2D.ts';
 import { vec2dsAreEqual } from '../../lib/ts/termdraw/vecutils.ts';
 import KeyEvent from '../../lib/ts/terminput/KeyEvent.ts';
-import { AbstractAppInstance, DenoStdinLike, PossiblyTUIAppContext, PossiblyTUIAppSpawner, runTuiApp, TUIAppRunOpts, Waitable } from '../../lib/ts/tuiappframework3.ts';
+import { AbstractAppInstance, DenoStdinLike, PossiblyTUIAppContext, PossiblyTUIAppSpawner, runTuiApp, TUIAppRunnerContext, Waitable } from '../../lib/ts/tuiappframework3.ts';
 import WatchableVariable, { makeReadonlyWatchable } from '../../lib/ts/WatchableVariable.ts';
 
 //// Misc helper functions
@@ -666,11 +666,18 @@ function parseTopArgs(args:string[]) : TopArgs {
 	return { appName, outputMode, inputMode, screenSizeOverride, appArgs };
 }
 
-interface ProcLikeSpawnContext {
+// For compatibility with Deno.spawn, which may be less important
+// now that I'm cramming other things into TUIAppSpawnContext context anyway.
+interface DenoProcLikeSpawnContext {
 	stdin  : DenoStdinLike;
 	stdout : typeof Deno.stdout;
 	stderr : typeof Deno.stderr;
 }
+
+// Ideally this would be mostly the same as what `runTuiApp` needs,
+// minus the app's own preferences.  Still thinking on how
+// stdin/stdout/stderr should be represented, since they are not always available.
+type TUIAppSpawnContext = DenoProcLikeSpawnContext & Pick<TUIAppRunnerContext, "screenSizeVar"|"registerCleanup"|"unregisterCleanup">;
 
 interface Spawner<C,R> {
 	spawn(ctx:C) : R;
@@ -678,14 +685,21 @@ interface Spawner<C,R> {
 
 function tuiAppToProcLike<R>(
 	app  : PossiblyTUIAppSpawner<PossiblyTUIAppContext, Waitable<R>, KeyEvent>,
-	opts : TUIAppRunOpts
-) : Spawner<ProcLikeSpawnContext, Waitable<R>> {
+	ctxOverrides : {
+		outputMode: "screen"|"lines",
+		screenSizeVar?: TUIAppSpawnContext["screenSizeVar"]
+	}
+) : Spawner<TUIAppSpawnContext, Waitable<R>> {
 	return {
-		spawn(ctx:ProcLikeSpawnContext) : Waitable<R> {
+		spawn(ctx:TUIAppSpawnContext) : Waitable<R> {
 			const exitCodePromise = runTuiApp(app, {
 				stdin: ctx.stdin,
-				stdout: ctx.stdout.writable.getWriter()
-			}, opts);
+				stdout: ctx.stdout.writable.getWriter(),
+				outputMode: ctxOverrides.outputMode,
+				screenSizeVar: ctxOverrides.screenSizeVar ?? ctx.screenSizeVar,
+				registerCleanup: ctx.registerCleanup,
+				unregisterCleanup: ctx.unregisterCleanup,
+			});
 			return {
 				wait() { return exitCodePromise }
 			};
@@ -693,10 +707,10 @@ function tuiAppToProcLike<R>(
 	}
 }
 
-function echoAndExitApp(toStdout:string[], toStderr:string[], exitCode:number) : Spawner<ProcLikeSpawnContext,Waitable<number>> {
+function echoAndExitApp(toStdout:string[], toStderr:string[], exitCode:number) : Spawner<DenoProcLikeSpawnContext,Waitable<number>> {
 	const textEncoder = new TextEncoder();
 	return {
-		spawn(ctx:ProcLikeSpawnContext) : Waitable<number> {
+		spawn(ctx:DenoProcLikeSpawnContext) : Waitable<number> {
 			async function run() : Promise<number> {
 				if( toStdout.length > 0 ) {
 					const writer = ctx.stdout.writable.getWriter();
@@ -749,16 +763,11 @@ function makeDenoScreenSizeVariable(initalValue:Vec2D<number>, refreshInterval:n
 	);
 }
 
-function parseMain(args:string[]) : Spawner<ProcLikeSpawnContext,Waitable<number>> {
+function parseMain(args:string[]) : Spawner<DenoProcLikeSpawnContext,Waitable<number>> {
 	const topArgs = parseTopArgs(args);
 	
-	const screenSizeVar =
-		topArgs.screenSizeOverride ? makeReadonlyWatchable(topArgs.screenSizeOverride) :
-		makeDenoScreenSizeVariable({x: 40, y: 20}, 1000);
-	
-	const runOpts : Pick<TUIAppRunOpts, "screenSizeVar"> = {
-		screenSizeVar
-	};
+	const ctxOverrides : Partial<Pick<TUIAppSpawnContext,"screenSizeVar">> = {};
+	if( topArgs.screenSizeOverride != undefined ) ctxOverrides.screenSizeVar = makeReadonlyWatchable(topArgs.screenSizeOverride);
 	
 	if( topArgs.appName == "help" ) {
 		return echoAndExitApp([], HELP_TEXT_LINES, 0);
@@ -767,8 +776,8 @@ function parseMain(args:string[]) : Spawner<ProcLikeSpawnContext,Waitable<number
 			inputMode: topArgs.inputMode ?? "none",
 			spawn: (ctx:PossiblyTUIAppContext)  => new ClockAppInstance(ctx),
 		}, {
-			...runOpts,
-			outputMode: topArgs.outputMode ?? "screen"
+			outputMode: topArgs.outputMode ?? "screen",
+			...ctxOverrides,
 		});
 	} else if( topArgs.appName == "hello" ) {
 		return tuiAppToProcLike({
@@ -778,8 +787,8 @@ function parseMain(args:string[]) : Spawner<ProcLikeSpawnContext,Waitable<number
 				"How's it going?"
 			], ctx),
 		}, {
-			...runOpts,
-			outputMode: topArgs.outputMode ?? "screen"
+			outputMode: topArgs.outputMode ?? "screen",
+			...ctxOverrides,
 		});
 	} else if( topArgs.appName == "wc" ) {
 		const inputFiles : string[] = [];
@@ -799,8 +808,8 @@ function parseMain(args:string[]) : Spawner<ProcLikeSpawnContext,Waitable<number
 			inputMode: usingStdin || topArgs.inputMode == undefined ? 'none' : topArgs.inputMode,
 			spawn: (ctx:PossiblyTUIAppContext) => new WCAppInstance(ctx, inputFiles),
 		}, {
-			...runOpts,
-			outputMode: topArgs.outputMode ?? "screen"
+			outputMode: topArgs.outputMode ?? "screen",
+			...ctxOverrides,
 		});
 	} else if( topArgs.appName == "boxes" ) {
 		const boxesAppOpts : BoxesAppOptions = {
@@ -824,16 +833,16 @@ function parseMain(args:string[]) : Spawner<ProcLikeSpawnContext,Waitable<number
 			inputMode: topArgs.inputMode ?? "none",
 			spawn: (ctx:PossiblyTUIAppContext) => new BoxesAppInstance(ctx, boxesAppOpts),
 		}, {
-			...runOpts,
-			outputMode: topArgs.outputMode ?? "screen"
+			outputMode: topArgs.outputMode ?? "screen",
+			...ctxOverrides,
 		});
 	} else if( topArgs.appName == "status-mockup" ) {
 		return tuiAppToProcLike({
 			inputMode: topArgs.inputMode ?? "none",
 			spawn: (ctx:PossiblyTUIAppContext) => new StatusMockupAppInstance(ctx),
 		}, {
-			...runOpts,
-			outputMode: topArgs.outputMode ?? "screen"
+			outputMode: topArgs.outputMode ?? "screen",
+			...ctxOverrides,
 		});
 	} else if( topArgs.appName == "no-app-specified" ) {
 		return echoAndExitApp([], ["No app specified; try 'help'"], 1);
@@ -846,5 +855,18 @@ function parseMain(args:string[]) : Spawner<ProcLikeSpawnContext,Waitable<number
 //   automatically lays things out, can draw boxes, tables, etc
 
 if( import.meta.main ) {
-	Deno.exit(await parseMain(Deno.args).spawn(Deno).wait())
+	const spwanCtx : TUIAppSpawnContext = {
+		stdin : Deno.stdin ,
+		stdout: Deno.stdout,
+		stderr: Deno.stderr,
+		screenSizeVar: makeDenoScreenSizeVariable({x: 40, y: 20}, 1000),
+		registerCleanup: (cb : ()=>void) => {
+			Deno.addSignalListener("SIGINT", cb);
+		},
+		unregisterCleanup: (cb : ()=>void) => {
+			Deno.removeSignalListener("SIGINT", cb);
+		},
+	};
+	
+	Deno.exit(await parseMain(Deno.args).spawn(spwanCtx).wait())
 }

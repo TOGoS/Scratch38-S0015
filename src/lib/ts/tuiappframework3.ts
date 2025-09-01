@@ -85,24 +85,28 @@ export type PossiblyTUIAppSpawner<Context,Instance,InputEvent> = {
 	spawn(context: Context) : Instance;
 };
 
-export interface TUIAppRunOpts {
-	outputMode: "screen"|"lines",
-	// TODO: This should be part of ctx, not opts!
-	screenSizeVar : WatchableVariable<Vec2D<number>>,
-}
-
 export interface DenoStdinLike {
 	setRaw(raw:boolean) : void;
 	readable : ReadableStream<Uint8Array>;
 }
 
+export interface TUIAppRunnerContext {
+	stdin  : DenoStdinLike;
+	stdout : WritableStreamDefaultWriter;
+	outputMode: "screen"|"lines";
+	screenSizeVar : WatchableVariable<Vec2D<number>>;
+	/*
+	 * Register 'finally' blocks, in case `finally` doesn't actually work
+	 * but the runtime has other ways to try to make sure they are run,
+	 * e.g. Deno.addSignalListener.
+	 */
+	registerCleanup(cb : () => void): void;
+	unregisterCleanup(cb : () => void): void;
+}
+
 export async function runTuiApp<Result>(
 	spawner: PossiblyTUIAppSpawner<PossiblyTUIAppContext, Waitable<Result>, KeyEvent>,
-	ctx:{
-		stdin  : DenoStdinLike,
-		stdout : WritableStreamDefaultWriter
-	},
-	opts: TUIAppRunOpts
+	ctx: TUIAppRunnerContext
 ) : Promise<Result> {
 	const textEncoder = new TextEncoder();
 	
@@ -114,7 +118,7 @@ export async function runTuiApp<Result>(
 		writeOut(text:string) : Promise<void>;
 		setScreenSize(screenSize:Vec2D<number>) : void;
 		setScene(scene:SizedRasterable) : void;
-	} = opts.outputMode == "lines" ? (() => {
+	} = ctx.outputMode == "lines" ? (() => {
 		let outProm = Promise.resolve();
 		let screenSize : Vec2D<number> = {x: 20, y: 10};
 		
@@ -184,7 +188,7 @@ export async function runTuiApp<Result>(
 			}
 		};
 	})();
-
+	
 	let rawModeSet = false;
 	let outManActive = false;
 	
@@ -201,18 +205,11 @@ export async function runTuiApp<Result>(
 			await outMan.exit();
 			outManActive = false;
 		}
-		opts.screenSizeVar.removeEventListener("change", screenSizeChangeListener);
+		ctx.screenSizeVar.removeEventListener("change", screenSizeChangeListener);
+		ctx.unregisterCleanup(cleanup);
 	}
 	
-	// Finally block is not run when the Deno process is killed with Ctrl+c
-	// (i.e. not in 'raw input' mode, in which case the program handles it).
-	// But this signal handler does seem to be run.
-	// 
-	// I have not figured out how to clean up
-	// when Ctrl+C is pressed while the process
-	// is reading from stdin.
-	// TODO: Put a function on ctx to avoid being tied to Deno
-	Deno.addSignalListener("SIGINT", cleanup);
+	ctx.registerCleanup(cleanup);
 	
 	try {
 		await outMan.enter();
@@ -227,7 +224,7 @@ export async function runTuiApp<Result>(
 			stdin = ctx.stdin.readable;
 		}
 		
-		opts.screenSizeVar.addEventListener("change", screenSizeChangeListener, {immediate:true});
+		ctx.screenSizeVar.addEventListener("change", screenSizeChangeListener, {immediate:true});
 		
 		const appInstance = spawner.spawn({
 			stdin   : stdin,
