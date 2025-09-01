@@ -75,6 +75,11 @@ export type PossiblyTUIAppSpawner<Context,Instance,InputEvent> = {
 	// Framework will push key events to the app 'asynchronously'
 	inputMode: "push-key-events",
 	spawn(context: Context) : Instance & InputHandler<InputEvent>;
+/* Hmm, maybe something like:
+} | {
+	inputMode: "readable",
+	spawn(context: Context & { stdin: ReadableStream<Uint8Array>; }) : Instance;
+*/
 } | {
 	inputMode: "none",
 	spawn(context: Context) : Instance;
