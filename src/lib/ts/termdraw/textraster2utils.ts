@@ -146,7 +146,15 @@ function validateRaster(rast:TextRaster2) {
 	if( rast.size.y < 0 || !isFinite(rast.size.y) ) throw new Error(`Bad raster height: ${rast.size.y}`);
 	if( rast.chars.length != rast.size.y ) throw new Error(`Raster chars length (${rast.chars.length} doesn't match size.y (${rast.size.y})`);
 	if( rast.styles.length != rast.size.y ) throw new Error(`Raster styles length (${rast.chars.length} doesn't match size.y (${rast.size.y})`);
+	for( let r=0; r<rast.size.y; ++r ) {
+		if( rast.chars [r].length != rast.size.x ) throw new Error(`${rast.size.x}x${rast.size.y} raster char row ${ r}'s length = ${rast.chars [r].length}`);
+		if( rast.styles[r].length != rast.size.x ) throw new Error(`${rast.size.x}x${rast.size.y} raster style row ${r}'s length = ${rast.styles[r].length}`);
+	}
 	return rast;
+}
+
+export function createRaster(size:Vec2D<number>, chars:(Character|undefined)[][], styles:(Style|undefined)[][]) : TextRaster2 {
+	return validateRaster({size, chars, styles});
 }
 
 export function createUniformRaster(size:Vec2D<number>, char:Character|undefined, style:Style|undefined) : TextRaster2 {

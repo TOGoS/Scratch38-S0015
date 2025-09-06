@@ -3,7 +3,7 @@ import TextRaster2, { Style } from "./TextRaster2.ts";
 import Vec2D from "./Vec2D.ts";
 import { BRIGHT_CYAN_TEXT, BRIGHT_GREEN_TEXT, CYAN_TEXT, GREEN_TEXT } from "./ansi.ts";
 import { boundsAreEqual, boundsToSize, centeredExpandedBounds, sizeToBounds, validateSize } from "./boundsutils.ts";
-import { blitToRaster, createUniformRaster, drawTextToRaster } from "./textraster2utils.ts";
+import { blitToRaster, createRaster, createUniformRaster, drawTextToRaster } from "./textraster2utils.ts";
 
 // Automatic 'component' layout system
 // 
@@ -62,13 +62,21 @@ export interface SizedRasterable {
 	rasterForSize(size : Vec2D<number>) : TextRaster2;
 }
 
+export type RegionFillOptions = {
+	/**
+	 * May be used by background generators to indicate areas that will be drawn over.
+	 * The background generator may e.g. use this to draw decorative borders.
+	 */
+	populatedRegions?: AABB2D<number>[]
+};
+
 export interface RegionFillingRasterableGenerator {
 	/**
 	 * Generate a BoundedRasterable that fills the given space;
 	 * result may be larger or smaller than the given region
 	 * and positioned differently; area is just a suggestion.
 	 */
-	fillRegion(area : AABB2D<number>) : BoundedRasterable
+	fillRegion(area : AABB2D<number>, options?: RegionFillOptions) : BoundedRasterable
 }
 
 export interface SizeFillingRasterableGenerator {
@@ -586,7 +594,9 @@ class PackedFlexRasterable implements PackedRasterable {
 			y1: horiz ? across : maxRowLength,
 		};
 		
-		const bg = this.#background.fillRegion(bounds);
+		const bg = this.#background.fillRegion(bounds, {
+			populatedRegions: sizedChildren.map(c => c.bounds)
+		});
 		if( !boundsAreEqual(bg.bounds, bounds) ) {
 			throw new Error(`Fuck!!`);
 		}
@@ -695,6 +705,92 @@ export function makeSolidGenerator(char:string, style:Style, packedBounds=ZERO_B
 			}
 		},
 		rasterForRegion,
+	};
+}
+
+function growRegion(aabb:AABB2D<number>, amount:number) {
+	return {
+		x0: aabb.x0 - amount,
+		y0: aabb.y0 - amount,
+		x1: aabb.x1 + amount,
+		y1: aabb.y1 + amount,
+	}
+}
+
+type Mask2D = (x:number,y:number) => boolean;
+
+function aabbMask(aabb:AABB2D<number>) : Mask2D {
+	return (x,y) => x >= aabb.x0 && x < aabb.x1 && y >= aabb.y0 && y < aabb.y1;
+}
+// Soemthing something function composition to make these generic over input parameter lists
+function orMasks(masks:Mask2D[]) : Mask2D {
+	return (x,y) => {
+		let v = false;
+		for( let mask of masks ) v ||= mask(x,y);
+		return v;
+	};
+}
+function andMasks(masks:Mask2D[]) : Mask2D {
+	return (x,y) => {
+		let v = true;
+		for( let mask of masks ) v &&= mask(x,y);
+		return v;
+	};
+}
+
+// Prototype generator that takes populatedRegions into account.
+// Eventually this or something based on it
+// should be able to draw lines instead of just a single character.
+export function makeChildBorderGenerator(char:string, style:Style, packedBounds=ZERO_BOUNDS) : AbstractRasterable&PackedRasterable&SizeFillingRasterableGenerator&RegionFillingRasterableGenerator&RegionRasterable {
+	const rasterForRegion = (options:RegionFillOptions = {}) => (region:AABB2D<number>) : TextRaster2 => {
+		//const bg = createUniformRaster(boundsToSize(region), char, style);
+		const popRegions = options.populatedRegions ?? [];
+		const borderRegions = popRegions.map(r => growRegion(r, 1));
+		const borderMasks = borderRegions.map(aabbMask);
+		const mask = orMasks(borderMasks);
+		
+		const fgChar = char;
+		const fgStyle = style;
+		// TODO: Background should be a parameter, too
+		const bgChar = " ";
+		const bgStyle = "";
+		
+		const chars = [];
+		const styles = [];
+		
+		const height = region.y1 - region.y0;
+		const width = region.x1 - region.x0;
+		for( let r=0; r<height; ++r ) {
+			const rowChars = [];
+			const rowStyles = [];
+			for( let c=0; c<width; ++c ) {
+				const maskValue = mask(c+region.x0, r+region.y0);
+				rowChars.push(maskValue ? fgChar : bgChar);
+				rowStyles.push(maskValue ? fgStyle : bgStyle);
+			}
+			chars.push(rowChars);
+			styles.push(rowStyles);
+		}
+		return createRaster({x:width, y:height}, chars, styles);
+	};
+	
+	// Lots of opportunities for memoization, here
+	return {
+		bounds: packedBounds,
+		pack() { return this; },
+		fillSize(size:Vec2D<number>) {
+			return {
+				bounds: {x0: 0, y0: 0, x1: size.x, y1: size.y},
+				rasterForRegion: rasterForRegion(),
+			}
+		},
+		fillRegion(region:AABB2D<number>, options: RegionFillOptions = {}) {
+			return {
+				bounds: region,
+				rasterForRegion: rasterForRegion(options),
+			}
+		},
+		rasterForRegion: rasterForRegion(),
 	};
 }
 

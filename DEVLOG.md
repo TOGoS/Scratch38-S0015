@@ -663,4 +663,55 @@ anyway because it might end up at the edge and be redundant.
 
 #### TUI Framework
 
-- [ ] Remove direct references to `Deno` to make the framework more generic
+- [X] Remove direct references to `Deno` to make the framework more generic
+
+## 2025-09-06
+
+### Child Borders
+
+As a step towards drawing nice line borders around and between flex children,
+I added an optional options parameter to `RegionFillingRasterableGenerator#fillRegion`:
+
+```typescript
+export type RegionFillOptions = {
+	/**
+	 * May be used by background generators to indicate areas that will be drawn over.
+	 * The background generator may e.g. use this to draw decorative borders.
+	 */
+	populatedRegions?: AABB2D<number>[]
+};
+
+export interface RegionFillingRasterableGenerator {
+	/**
+	 * Generate a BoundedRasterable that fills the given space;
+	 * result may be larger or smaller than the given region
+	 * and positioned differently; area is just a suggestion.
+	 */
+	fillRegion(area : AABB2D<number>, options?: RegionFillOptions) : BoundedRasterable
+}
+```
+
+The idea being that the background generator that is used by a flex layout component
+will be provided, by the flex layout, the positions of all the child elements,
+which the background generator can use, or not, for whatever purpose it wants,
+one possible use being to outline those regions:
+
+Thanks to strong typing and immutable data structures, this worked the first time,
+though the issue with mysterious extra gaps remains.
+
+```sh
+deno run src/demo/ts/tuidemo3.ts --output-mode=lines --screen-size=50,10 status-mockup
+```
+
+Output, with yellow/black checkerboard pattern highlighting the
+gaps that shouldn't exist:
+
+![Screenshot showing border drawing working okay, but mystery gaps remaining](http://picture-files.nuke24.net/uri-res/raw/urn:bitprint:OUDM7F2EPJD6GJSJKAUFYODXLX6NCEG4.BKMHUAYDJUCKKUPY32T4QAKP5FZDAPD7VZ6BBAY/20250906T15-ChildBordersAndMysteryGaps.png)
+
+You'd think that when told to pack itself into 9 rows,
+that top gap would go away, but instead the thing reflows into two columns.
+In any case, the black gap on the right is obviously wrong.
+
+Part of me wants to rewrite the flex layout system in Idris or Coq or something
+in the hope that the compiler could then tell me why the components
+aren't filling the full space that I expect them to.
