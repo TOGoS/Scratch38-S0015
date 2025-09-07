@@ -718,4 +718,11 @@ aren't filling the full space that I expect them to.
 
 ### Line borders
 
+Yay, now I can automatically draw line borders around children of flex layouts!
+
 ![Booyah](http://picture-files.nuke24.net/uri-res/raw/urn:bitprint:ENL2WMA7HMIOWKBLBZ643TVV3J3IEPXF.OCKHDTJ3NP6Y5NGW5LADBTU435N7DQBJAWDC5AI/20250906T23-ChildLineBorders.png)
+
+In addition to the weird gaps,
+there's this case where lines get doubled:
+
+![Hmm](http://picture-files.nuke24.net/uri-res/raw/urn:bitprint:K4TP6N3XTLH3B2GO4O6KAZBEPE43BUGI.PAEHNRF6GLZGS23VC7MHRJXMEVTVOADHH5VKRUA/20250906T23-ChildLineBordersHmm.png)
