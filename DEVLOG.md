@@ -715,3 +715,7 @@ In any case, the black gap on the right is obviously wrong.
 Part of me wants to rewrite the flex layout system in Idris or Coq or something
 in the hope that the compiler could then tell me why the components
 aren't filling the full space that I expect them to.
+
+### Line borders
+
+![Booyah](http://picture-files.nuke24.net/uri-res/raw/urn:bitprint:ENL2WMA7HMIOWKBLBZ643TVV3J3IEPXF.OCKHDTJ3NP6Y5NGW5LADBTU435N7DQBJAWDC5AI/20250906T23-ChildLineBorders.png)

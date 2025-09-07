@@ -11,7 +11,7 @@ export const BDC_PROP_SHIFTS = {
 
 export type LineStyle = number & {roleRef?:"x:BoxDrawingLineStyle"};
 
-export const BDC_PROP_VALUES : {[name:string]: LineStyle} = {
+export const BDC_PROP_VALUES = {
 	NONE         : 0,
 	LIGHT        : 1,
 	DOUBLE       : 2,

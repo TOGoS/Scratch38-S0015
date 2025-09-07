@@ -738,17 +738,36 @@ function andMasks(masks:Mask2D[]) : Mask2D {
 	};
 }
 
+export interface ByteRaster {
+	size: Vec2D<number>,
+	data: Uint8Array
+}
+
 // Prototype generator that takes populatedRegions into account.
 // Eventually this or something based on it
 // should be able to draw lines instead of just a single character.
-export function makeChildBorderGenerator(char:string, style:Style, packedBounds=ZERO_BOUNDS) : AbstractRasterable&PackedRasterable&SizeFillingRasterableGenerator&RegionFillingRasterableGenerator&RegionRasterable {
+export function makeChildBorderGenerator(toRast:(maskValues:ByteRaster) => TextRaster2, packedBounds=ZERO_BOUNDS) : AbstractRasterable&PackedRasterable&SizeFillingRasterableGenerator&RegionFillingRasterableGenerator&RegionRasterable {
 	const rasterForRegion = (options:RegionFillOptions = {}) => (region:AABB2D<number>) : TextRaster2 => {
 		//const bg = createUniformRaster(boundsToSize(region), char, style);
 		const popRegions = options.populatedRegions ?? [];
+		const popMask = orMasks(popRegions.map(aabbMask));
 		const borderRegions = popRegions.map(r => growRegion(r, 1));
-		const borderMasks = borderRegions.map(aabbMask);
-		const mask = orMasks(borderMasks);
+		const borderMask = orMasks(borderRegions.map(aabbMask));
 		
+		const height = region.y1 - region.y0;
+		const width = region.x1 - region.x0;
+		
+		const maskValues = new Uint8Array(width*height);
+		let i=0;
+		for( let r=0; r<height; ++r ) {
+			for( let c=0; c<width; ++c ) {
+				// Good enough for now
+				const x = c+region.x0, y = r+region.y0;
+				maskValues[i++] = popMask(x,y) ? 2 : borderMask(c+region.x0, r+region.y0) ? 1 : 0;
+			}
+		}
+		return toRast({size: {x:width, y:height}, data: maskValues});
+		/*
 		const fgChar = char;
 		const fgStyle = style;
 		// TODO: Background should be a parameter, too
@@ -758,8 +777,6 @@ export function makeChildBorderGenerator(char:string, style:Style, packedBounds=
 		const chars = [];
 		const styles = [];
 		
-		const height = region.y1 - region.y0;
-		const width = region.x1 - region.x0;
 		for( let r=0; r<height; ++r ) {
 			const rowChars = [];
 			const rowStyles = [];
@@ -772,6 +789,7 @@ export function makeChildBorderGenerator(char:string, style:Style, packedBounds=
 			styles.push(rowStyles);
 		}
 		return createRaster({x:width, y:height}, chars, styles);
+		*/
 	};
 	
 	// Lots of opportunities for memoization, here
