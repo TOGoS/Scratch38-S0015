@@ -720,7 +720,7 @@ aren't filling the full space that I expect them to.
 
 Yay, now I can automatically draw line borders around children of flex layouts!
 
-![Booyah](http://picture-files.nuke24.net/uri-res/raw/urn:bitprint:ENL2WMA7HMIOWKBLBZ643TVV3J3IEPXF.OCKHDTJ3NP6Y5NGW5LADBTU435N7DQBJAWDC5AI/20250906T23-ChildLineBorders.png)
+![Booyah](http://picture-files.nuke24.net/uri-res/raw/urn:bitprint:G7QURFA4HSWHUT7PRSDOOCAMV44K5ZY3.F4KMNXHIRW7VOECLO6ZHNIPCMRABCXKHBZ73UZY/20250906T23-ChildLineBorders2.png)
 
 In addition to the weird gaps,
 there's this case where lines get doubled:
