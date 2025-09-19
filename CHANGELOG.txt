@@ -1,4 +1,13 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.0.14
+Date: 2025-09-07
+Features:
+  - Various breaking changes to tuiappframework3.ts
+  - Add 'components2' library for automatically laying out renderable components
+    - Extremely inefficient for now; recalculates everything for every change!
+    - Theoretically, performance can be incrementally improved by aggressive memoization
+      without introducing breaking API changes
+---------------------------------------------------------------------------------------------------
 Version: 0.0.13
 Date: 2025-08-09
 Additions:
