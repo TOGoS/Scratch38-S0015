@@ -66,3 +66,17 @@ isn't very well organized, and may change drastically between versions.
 
 
 See [DEVLOG.md](./DEVLOG.md) for stream of consciousness as I try to figure out what I'm trying to build.
+
+## TODOs
+
+### Fix handling of keys with modifiers
+
+I am not sure how control, alt, and shift are supposed to modify
+keyboard events in the web key API,
+which (inputeventparser.ts)[./src/lib/ts/terminput/inputeventparser.ts]
+tries to emulate.
+
+https://garbagecollected.org/2017/01/31/four-column-ascii/ may have a hint or two,
+at least when it comes to keypresses that correspond cleanly to ASCII characters.
+
+"Pressing CTRL simply sets all bits but the last 5 to zero in the character that you typed."

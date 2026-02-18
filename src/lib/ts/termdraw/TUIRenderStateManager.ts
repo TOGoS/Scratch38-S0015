@@ -58,6 +58,10 @@ export default class TUIRenderStateManager {
 		if( this.#redrawTimeout != undefined ) return;
 		this.#redrawTimeout = setTimeout(async () => {
 			try {
+				// TODO: I think there is a race condition here.
+				// If requestRedraw() is called before draw finishes,
+				// the request gets lost.
+				// Write a unit test to fix it.
 				await this.draw();
 			} finally {
 				this.#redrawTimeout = undefined;
